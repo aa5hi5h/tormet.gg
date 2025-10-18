@@ -1,164 +1,284 @@
 "use client"
 import axios from "axios"
 import { useState, useEffect } from "react"
+import { createMatch, joinMatch, getOpenMatches, checkAndUpdateGameResults } from "../../lib/action"
 
 interface MatchProps {
-  creator: string,
-  gameId: string,
-  url: string,
-  status: 'waiting' | 'playing' | 'finished',
-  winner?: string // 'white' | 'black' | 'draw'
+  id: string
+  creator: {
+    username: string
+  }
+  joiner?: {
+    username: string
+  } | null
+  gameId: string
+  url: string
+  status: 'WAITING' | 'PLAYING' | 'FINISHED' | 'CANCELLED'
+  winner?: 'WHITE' | 'BLACK' | 'DRAW' | null
 }
 
 const ChessInterface = () => {
 
   const [name, setName] = useState<string>('')
   const [matches, setMatches] = useState<MatchProps[]>([])
+  const [loading, setLoading] = useState(false)
+  const [myActiveMatches, setMyActiveMatches] = useState<string[]>([]) 
 
-  // Poll active games every 10 seconds
   useEffect(() => {
-    const interval = setInterval(() => {
-      checkMatchResults()
-    }, 10000) // 10 seconds
+    loadMatches()
+  }, [])
+
+  
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      await checkAndUpdateGameResults()
+      const updatedMatches = await getOpenMatches()
+      
+      updatedMatches.forEach((match: any) => {
+        if (myActiveMatches.includes(match.id)) {
+          const oldMatch = matches.find(m => m.id === match.id)
+          if (oldMatch?.status === 'WAITING' && match.status === 'PLAYING') {
+            window.open(match.url, '_blank')
+          }
+        }
+      })
+      
+      setMatches(updatedMatches as any)
+    }, 5000) 
 
     return () => clearInterval(interval)
-  }, [matches])
+  }, [matches, myActiveMatches])
 
-  const checkMatchResults = async () => {
-    // Only check games that are playing (not finished)
-    const activeMatches = matches.filter(m => m.status === 'playing')
-    
-    for (const match of activeMatches) {
-      try {
-        const response = await axios.get(`https://lichess.org/api/game/${match.gameId}`)
-        const game = response.data
-        
-        // Check if game is finished
-        if (game.status === 'mate' || game.status === 'resign' || game.status === 'outoftime' || game.status === 'draw') {
-          
-          // Update match with winner
-          setMatches(prev => prev.map(m => 
-            m.gameId === match.gameId 
-              ? { ...m, status: 'finished', winner: game.winner || 'draw' }
-              : m
-          ))
-        }
-      } catch (error) {
-        console.error('Error checking game:', error)
-      }
+  const loadMatches = async () => {
+    try {
+      const openMatches = await getOpenMatches()
+      setMatches(openMatches as any)
+    } catch (error) {
+      console.error('Error loading matches:', error)
     }
   }
 
   const onCreateMatch = async () => {
-    console.log("function trigger")
+    if (!name) return
+    
+    setLoading(true)
     try {
       const request = await axios.post('https://lichess.org/api/challenge/open', { 
         clock: { limit: 300, increment: 0 },
         rated: false
       })
       
-      console.log(request)
+      console.log('Lichess response:', request.data)
       
-      setMatches(prev => [
-        ...prev,
-        {
-          creator: name,
-          gameId: request.data.id,
-          url: request.data.url,
-          status: 'waiting'
-        }
-      ])
+      const match = await createMatch(
+        name,
+        request.data.id,
+        request.data.url
+      )
+
+      setMyActiveMatches(prev => [...prev, (match as any).id])
+
+      await loadMatches()
+      
     } catch (error) {
       console.error('Error creating match:', error)
+      alert('Error creating match. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const onJoinMatch = (match: MatchProps) => {
-    console.log("Join a match trigger")
+  const onJoinMatch = async (match: MatchProps) => {
+    if (!name) {
+      alert('Please enter your username first')
+      return
+    }
     
-    // Update status to 'playing' when someone joins
-    setMatches(prev => prev.map(m => 
-      m.gameId === match.gameId 
-        ? { ...m, status: 'playing' }
-        : m
-    ))
+    if (match.creator.username === name) {
+      alert('You cannot join your own match!')
+      return
+    }
     
-    window.open(match.url, '_blank')
+    try {
+      await joinMatch(match.id, name)
+      
+      window.open(match.url, '_blank')
+
+      await loadMatches()
+      
+    } catch (error) {
+      console.error('Error joining match:', error)
+      alert('Error joining match. Please try again.')
+    }
   }
 
   const getStatusBadge = (match: MatchProps) => {
-    if (match.status === 'waiting') {
-      return <span className="bg-yellow-200 px-2 py-1 rounded text-xs">Waiting</span>
-    }
-    if (match.status === 'playing') {
-      return <span className="bg-blue-200 px-2 py-1 rounded text-xs">Playing...</span>
-    }
-    if (match.status === 'finished') {
+    const isMyMatch = match.creator.username === name
+    
+    if (match.status === 'WAITING') {
       return (
-        <span className="bg-green-200 px-2 py-1 rounded text-xs">
-          Finished - Winner: {match.winner === 'draw' ? 'Draw' : match.winner}
+        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+          isMyMatch ? 'bg-orange-200 text-orange-800' : 'bg-yellow-200 text-yellow-800'
+        }`}>
+          {isMyMatch ? '⏳ Waiting for opponent...' : '🟢 Available'}
+        </span>
+      )
+    }
+    if (match.status === 'PLAYING') {
+      return (
+        <span className="bg-blue-200 text-blue-800 px-3 py-1 rounded-full text-xs font-semibold">
+          ♟️ Game in progress
+        </span>
+      )
+    }
+    if (match.status === 'FINISHED') {
+      return (
+        <span className="bg-green-200 text-green-800 px-3 py-1 rounded-full text-xs font-semibold">
+          🏆 Winner: {match.winner === 'DRAW' ? 'Draw' : match.winner}
         </span>
       )
     }
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-2xl p-4">
-      <h1 className="text-2xl font-bold">Chess Match Interface</h1>
-      
-      <input
-        placeholder="Your username"
-        className="border p-2 rounded-md"
-        value={name}
-        onChange={(e) => setName(e.target.value)} 
-      />
-      
-      <button 
-        onClick={onCreateMatch} 
-        className="bg-blue-500 text-white p-2 rounded-md cursor-pointer hover:bg-blue-600"
-        disabled={!name}
-      >
-        Create Match
-      </button>
+    <div className="flex flex-col gap-6 max-w-3xl p-6 mx-auto">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-l-4 border-blue-500 rounded-lg p-4">
+        <h2 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+          <span className="text-xl">ℹ️</span> How it works:
+        </h2>
+        <ol className="text-sm text-blue-800 space-y-2 list-decimal list-inside ml-2">
+          <li>Enter your username and <strong>create a match</strong></li>
+          <li><strong>Stay on this page</strong> - you'll be redirected when someone joins</li>
+          <li>When opponent joins, <strong>you'll both be redirected automatically</strong></li>
+          <li>Play your game on Lichess and winner will be shown here!</li>
+        </ol>
+      </div>
 
-      <h2 className="text-xl font-semibold mt-4">Open Matches</h2>
+      <div className="flex items-center gap-4">
+        <h1 className="text-3xl font-bold">Chess Wagering</h1>
+        {myActiveMatches.length > 0 && (
+          <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold animate-pulse">
+            🎮 {myActiveMatches.length} active match{myActiveMatches.length > 1 ? 'es' : ''}
+          </span>
+        )}
+      </div>
       
-      <div>
+      <div className="flex gap-3">
+        <input
+          placeholder="Enter your username"
+          className="border-2 border-gray-300 p-3 rounded-lg flex-1 focus:outline-none focus:border-blue-500 transition-colors"
+          value={name}
+          onChange={(e) => setName(e.target.value)} 
+        />
+        
+        <button 
+          onClick={onCreateMatch} 
+          className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-8 py-3 rounded-lg cursor-pointer hover:from-blue-600 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed font-bold shadow-md hover:shadow-lg transition-all"
+          disabled={!name || loading}
+        >
+          {loading ? '⏳ Creating...' : '✨ Create Match'}
+        </button>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <h2 className="text-xl font-semibold">Available Matches</h2>
+        <button
+          onClick={loadMatches}
+          className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+        >
+          🔄 Refresh
+        </button>
+        <span className="text-sm text-gray-500">
+          Auto-refreshing every 5s
+        </span>
+      </div>
+      
+      <div className="space-y-3">
         {matches.length === 0 ? (
-          <p className="text-gray-500">No matches yet. Create one!</p>
+          <div className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center bg-gray-50">
+            <div className="text-6xl mb-4">♟️</div>
+            <p className="text-gray-500 text-lg">No matches available</p>
+            <p className="text-gray-400 text-sm mt-2">Create the first one!</p>
+          </div>
         ) : (
-          matches.map((match, index) => (
-            <div 
-              key={index} 
-              className="border border-gray-300 p-4 rounded-md mb-2"
-            >
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="font-medium">Creator: {match.creator}</p>
-                  <p className="text-sm text-gray-600">Game ID: {match.gameId}</p>
-                </div>
-                <div className="flex flex-col gap-2 items-end">
-                  {getStatusBadge(match)}
-                  {match.status === 'waiting' && (
-                    <button 
-                      onClick={() => onJoinMatch(match)}
-                      className="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600"
-                    >
-                      Join Match
-                    </button>
-                  )}
-                  {match.status === 'playing' && (
-                    <button 
-                      onClick={() => window.open(match.url, '_blank')}
-                      className="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600"
-                    >
-                      Watch Game
-                    </button>
-                  )}
+          matches.map((match) => {
+            const isMyMatch = match.creator.username === name
+            
+            return (
+              <div 
+                key={match.id} 
+                className={`border-2 p-5 rounded-xl shadow-sm hover:shadow-md transition-all ${
+                  isMyMatch 
+                    ? 'border-orange-300 bg-orange-50' 
+                    : 'border-gray-200 bg-white hover:border-blue-300'
+                }`}
+              >
+                <div className="flex justify-between items-center">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-2">
+                      <p className="font-bold text-xl">
+                        {isMyMatch ? '👤 Your Match' : `🎮 ${match.creator.username}'s Match`}
+                      </p>
+                      {isMyMatch && match.status === 'WAITING' && (
+                        <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full animate-pulse">
+                          Waiting...
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Game ID: <code className="bg-gray-100 px-2 py-1 rounded text-xs font-mono">{match.gameId}</code>
+                    </p>
+                    {match.joiner && (
+                      <p className="text-sm text-gray-600 mt-2 flex items-center gap-2">
+                        <span>⚔️</span>
+                        <strong>{match.joiner.username}</strong> joined
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-col gap-3 items-end">
+                    {getStatusBadge(match)}
+                    
+                    {match.status === 'WAITING' && !isMyMatch && (
+                      <button 
+                        onClick={() => onJoinMatch(match)}
+                        className="bg-gradient-to-r from-green-500 to-green-600 text-white px-6 py-3 rounded-lg hover:from-green-600 hover:to-green-700 font-bold shadow-md hover:shadow-lg transition-all"
+                      >
+                        ⚡ Join & Play
+                      </button>
+                    )}
+                    
+                    {match.status === 'WAITING' && isMyMatch && (
+                      <button 
+                        onClick={() => window.open(match.url, '_blank')}
+                        className="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 font-semibold text-sm"
+                      >
+                        🔗 Open Lichess Link
+                      </button>
+                    )}
+                    
+                    {match.status === 'PLAYING' && (
+                      <button 
+                        onClick={() => window.open(match.url, '_blank')}
+                        className="bg-blue-500 text-white px-5 py-3 rounded-lg hover:bg-blue-600 font-semibold"
+                      >
+                        👀 Watch Game
+                      </button>
+                    )}
+                    
+                    {match.status === 'FINISHED' && (
+                      <button 
+                        onClick={() => window.open(match.url, '_blank')}
+                        className="bg-gray-500 text-white px-5 py-3 rounded-lg hover:bg-gray-600 font-semibold"
+                      >
+                        📊 View Results
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            )
+          })
         )}
       </div>
     </div>

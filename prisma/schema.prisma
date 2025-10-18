@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  wallet    String?  @unique // Solana wallet address (optional for now)
+  balance   Float    @default(0) // Virtual balance for now
+  createdAt DateTime @default(now())
+  
+  createdMatches Match[] @relation("MatchCreator")
+  joinedMatches  Match[] @relation("MatchJoiner")
+}
+
+model Match {
+  id          String   @id @default(cuid())
+  gameId      String   @unique 
+  url         String   
+  wager       Float    @default(0) 
+  status      Status   @default(WAITING)
+  winner      Winner?  
+  createdAt   DateTime @default(now())
+  finishedAt  DateTime?
+  
+  creatorId   String
+  creator     User     @relation("MatchCreator", fields: [creatorId], references: [id])
+  
+  joinerId    String?
+  joiner      User?    @relation("MatchJoiner", fields: [joinerId], references: [id])
+  
+  
+  createTxHash  String? 
+  joinTxHash    String? 
+  payoutTxHash  String? 
+}
+
+enum Status {
+  WAITING
+  PLAYING
+  FINISHED
+  CANCELLED
+}
+
+enum Winner {
+  WHITE
+  BLACK
+  DRAW
+}

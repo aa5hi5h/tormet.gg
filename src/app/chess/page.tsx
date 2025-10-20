@@ -1,7 +1,7 @@
 "use client"
 import axios from "axios"
 import { useState, useEffect } from "react"
-import { createMatch, joinMatch, getOpenMatches, checkAndUpdateGameResults } from "../../lib/action"
+import { createMatch, joinMatch, getOpenMatches, checkAndUpdateGameResults, getAllActiveMatches } from "../../lib/server-action/mian"
 
 interface MatchProps {
   id: string
@@ -22,29 +22,37 @@ const ChessInterface = () => {
   const [name, setName] = useState<string>('')
   const [matches, setMatches] = useState<MatchProps[]>([])
   const [loading, setLoading] = useState(false)
-  const [myActiveMatches, setMyActiveMatches] = useState<string[]>([]) 
+  const [myActiveMatches, setMyActiveMatches] = useState<string[]>([])
+  const [previousMatchStates, setPreviousMatchStates] = useState<Map<string, string>>(new Map())
 
   useEffect(() => {
     loadMatches()
   }, [])
 
   
-  useEffect(() => {
+   useEffect(() => {
     const interval = setInterval(async () => {
       await checkAndUpdateGameResults()
-      const updatedMatches = await getOpenMatches()
       
-      updatedMatches.forEach((match: any) => {
+      const allMatches = await getAllActiveMatches()
+      
+      allMatches.forEach((match: any) => {
         if (myActiveMatches.includes(match.id)) {
-          const oldMatch = matches.find(m => m.id === match.id)
-          if (oldMatch?.status === 'WAITING' && match.status === 'PLAYING') {
+          const previousStatus = previousMatchStates.get(match.id)
+          
+          if (previousStatus === 'WAITING' && match.status === 'PLAYING') {
+            console.log('🎮 Match started! Redirecting...', match.gameId)
             window.open(match.url, '_blank')
           }
+          
+          setPreviousMatchStates(prev => new Map(prev).set(match.id, match.status))
         }
       })
+
+      const openMatches = await getOpenMatches()
+      setMatches(openMatches as any)
       
-      setMatches(updatedMatches as any)
-    }, 5000) 
+    }, 15000) 
 
     return () => clearInterval(interval)
   }, [matches, myActiveMatches])

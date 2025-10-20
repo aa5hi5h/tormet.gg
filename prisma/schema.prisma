@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,8 +12,8 @@ datasource db {
 model User {
   id        String   @id @default(cuid())
   username  String   @unique
-  wallet    String?  @unique // Solana wallet address (optional for now)
-  balance   Float    @default(0) // Virtual balance for now
+  wallet    String?  @unique
+  balance   Float    @default(0)
   createdAt DateTime @default(now())
   
   createdMatches Match[] @relation("MatchCreator")
@@ -20,11 +22,23 @@ model User {
 
 model Match {
   id          String   @id @default(cuid())
-  gameId      String   @unique 
-  url         String   
-  wager       Float    @default(0) 
+  gameType    GameType @default(CHESS)
+  
+  // Chess/Lichess specific
+  gameId      String?  
+  url         String?
+  
+  // League of Legends specific
+  summonerName1   String?  // Creator's summoner name
+  summonerName2   String?  // Joiner's summoner name
+  summonerPuuid1  String?  // Creator's PUUID
+  summonerPuuid2  String?  // Joiner's PUUID
+  region          String?  // na1, euw1, kr, etc.
+  riotMatchId     String?  // Riot match ID when detected
+  
+  wager       Float    @default(0)
   status      Status   @default(WAITING)
-  winner      Winner?  
+  winner      Winner?
   createdAt   DateTime @default(now())
   finishedAt  DateTime?
   
@@ -34,10 +48,19 @@ model Match {
   joinerId    String?
   joiner      User?    @relation("MatchJoiner", fields: [joinerId], references: [id])
   
-  
-  createTxHash  String? 
-  joinTxHash    String? 
-  payoutTxHash  String? 
+  createTxHash  String?
+  joinTxHash    String?
+  payoutTxHash  String?
+
+  @@index([gameType, status])
+}
+
+enum GameType {
+  CHESS
+  LOL
+  VALORANT
+  DOTA2
+  CSGO
 }
 
 enum Status {
@@ -51,4 +74,6 @@ enum Winner {
   WHITE
   BLACK
   DRAW
+  CREATOR  // For non-chess games
+  JOINER   // For non-chess games
 }

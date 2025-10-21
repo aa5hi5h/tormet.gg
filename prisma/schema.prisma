@@ -38,6 +38,14 @@ model Match {
 
   statsSnapshotBefore Json?
   statsSnapshotAfter  Json?
+
+  platform1        String?
+  platform2        String?
+  beforeSnapshot1  String?
+  beforeSnapshot2  String?
+  afterSnapshot1   String?
+  afterSnapshot2   String?
+  startedAt        DateTime?
   
   wager       Float    @default(0)
   status      Status   @default(WAITING)
@@ -64,6 +72,8 @@ enum GameType {
   VALORANT
   DOTA2
   CSGO
+  FORTNITE
+  ROCKET_LEAGUE
 }
 
 enum Status {

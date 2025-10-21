@@ -4,6 +4,8 @@ import axios from 'axios'
 import { determineValorantWinner, determineWinner, findMatchBetweenPlayers, findValorantMatchBetweenPlayers, getSummonerByName, getValorantAccount } from './riot-api'
 import { determineDotaWinner, findDotaMatchBetweenPlayers, getDotaPlayer } from './dota-api'
 import { captureCSGOStatsSnapshot, compareCSGOSnapshots, CSGOMatchSnapshot, getSteamPlayer, isValidSteamId, resolveSteamVanityURL } from './steam-api'
+import { captureFortniteSnapshot, determineFortniteWinner, FortniteSnapshot, getFortnitePlayer } from './fortnite-api'
+import { captureRocketLeagueSnapshot, determineRocketLeagueWinner, getRocketLeaguePlayer, RocketLeagueSnapshot } from './rocket-league-api'
 
 export async function createMatch(username: string, gameId: string, url: string) {
   let user = await prisma.user.findUnique({
@@ -902,6 +904,582 @@ export async function checkCSGOMatchResult(){
 
   } catch (err) {
     console.error("Error checking CS:GO match results:", err)
+    throw err
+  }
+}
+
+export async function createFortniteMatch(
+  username: string,
+  epicUsername: string,
+  platform: string = 'pc'
+) {
+  try {
+    const playerData = await getFortnitePlayer(epicUsername, platform)
+
+    if (!playerData) {
+      throw new Error("Fortnite player not found. Check your Epic username and platform!")
+    }
+
+    // Capture initial snapshot
+    const snapshot = await captureFortniteSnapshot(epicUsername, platform)
+    
+    if (!snapshot) {
+      throw new Error("Failed to capture player stats. Try again!")
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { username }
+    })
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: { username }
+      })
+    }
+
+    const match = await prisma.match.create({
+      data: {
+        gameType: "FORTNITE",
+        creatorId: user.id,
+        summonerName1: epicUsername,
+        summonerPuuid1: playerData.accountId,
+        platform1: platform,
+        beforeSnapshot1: JSON.stringify(snapshot), // Store snapshot as JSON
+        status: 'WAITING'
+      },
+      include: {
+        creator: true
+      }
+    })
+
+    return match
+
+  } catch (error) {
+    console.error("Error creating Fortnite match:", error)
+    throw error
+  }
+}
+
+export async function joinFortniteMatch(
+  matchId: string,
+  username: string,
+  epicUsername: string,
+  platform: string = 'pc'
+) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId }
+    })
+
+    if (!match || match.gameType !== "FORTNITE") {
+      throw new Error("Match not found!")
+    }
+
+    if (match.status !== 'WAITING') {
+      throw new Error("Match is no longer available")
+    }
+
+    const playerData = await getFortnitePlayer(epicUsername, platform)
+
+    if (!playerData) {
+      throw new Error("Fortnite player not found. Check your Epic username and platform!")
+    }
+
+    const snapshot = await captureFortniteSnapshot(epicUsername, platform)
+    
+    if (!snapshot) {
+      throw new Error("Failed to capture player stats. Try again!")
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { username }
+    })
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: { username }
+      })
+    }
+
+    const updatedMatch = await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        joinerId: user.id,
+        summonerName2: epicUsername,
+        summonerPuuid2: playerData.accountId,
+        platform2: platform,
+        beforeSnapshot2: JSON.stringify(snapshot),
+        status: 'PLAYING',
+        startedAt: new Date()
+      },
+      include: {
+        creator: true,
+        joiner: true
+      }
+    })
+
+    return updatedMatch
+  } catch (err) {
+    console.error("Error joining Fortnite match:", err)
+    throw err
+  }
+}
+
+export async function getOpenFortniteMatches() {
+  return await prisma.match.findMany({
+    where: {
+      gameType: 'FORTNITE',
+      status: 'WAITING'
+    },
+    include: {
+      creator: true
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  })
+}
+
+export async function getAllFortniteMatches() {
+  return await prisma.match.findMany({
+    where: {
+      gameType: 'FORTNITE'
+    },
+    include: {
+      creator: true,
+      joiner: true
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  })
+}
+
+export async function getFortniteMatchById(matchId: string) {
+  return await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      creator: true,
+      joiner: true
+    }
+  })
+}
+
+export async function checkFortniteMatchResult() {
+  try {
+    const playingMatches = await prisma.match.findMany({
+      where: {
+        gameType: "FORTNITE",
+        status: "PLAYING"
+      }
+    })
+
+    for (const match of playingMatches) {
+      if (!match.summonerName1 || !match.summonerName2 || 
+          !match.beforeSnapshot1 || !match.beforeSnapshot2) {
+        continue
+      }
+
+      // Check if enough time has passed (at least 15 minutes for a Fortnite match)
+      const timeSinceStart = Date.now() - (match.startedAt?.getTime() || 0)
+      if (timeSinceStart < 15 * 60 * 1000) { // 15 minutes minimum
+        continue
+      }
+
+      // Capture new snapshots
+      const player1After = await captureFortniteSnapshot(
+        match.summonerName1,
+        match.platform1 || 'pc'
+      )
+      const player2After = await captureFortniteSnapshot(
+        match.summonerName2,
+        match.platform2 || 'pc'
+      )
+
+      if (!player1After || !player2After) {
+        continue
+      }
+
+      // Parse before snapshots
+      const player1Before: FortniteSnapshot = JSON.parse(match.beforeSnapshot1)
+      const player2Before: FortniteSnapshot = JSON.parse(match.beforeSnapshot2)
+
+      // Determine winner
+      const winner = determineFortniteWinner(
+        player1Before,
+        player1After,
+        player2Before,
+        player2After
+      )
+
+      if (winner) {
+        await prisma.match.update({
+          where: { id: match.id },
+          data: {
+            status: "FINISHED",
+            winner: winner,
+            afterSnapshot1: JSON.stringify(player1After),
+            afterSnapshot2: JSON.stringify(player2After),
+            finishedAt: new Date()
+          }
+        })
+
+        console.log(`✅ Fortnite Match ${match.id} finished! Winner: ${winner}`)
+      }
+    }
+
+  } catch (err) {
+    console.error("Error checking Fortnite match results:", err)
+    throw err
+  }
+}
+
+// Helper function to manually submit match result
+export async function submitFortniteMatchResult(matchId: string) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId }
+    })
+
+    if (!match || match.gameType !== "FORTNITE" || match.status !== "PLAYING") {
+      throw new Error("Invalid match")
+    }
+
+    if (!match.summonerName1 || !match.summonerName2 || 
+        !match.beforeSnapshot1 || !match.beforeSnapshot2) {
+      throw new Error("Match data incomplete")
+    }
+
+    const player1After = await captureFortniteSnapshot(
+      match.summonerName1,
+      match.platform1 || 'pc'
+    )
+    const player2After = await captureFortniteSnapshot(
+      match.summonerName2,
+      match.platform2 || 'pc'
+    )
+
+    if (!player1After || !player2After) {
+      throw new Error("Failed to capture current stats")
+    }
+
+    const player1Before: FortniteSnapshot = JSON.parse(match.beforeSnapshot1)
+    const player2Before: FortniteSnapshot = JSON.parse(match.beforeSnapshot2)
+
+    const winner = determineFortniteWinner(
+      player1Before,
+      player1After,
+      player2Before,
+      player2After
+    )
+
+    if (!winner) {
+      throw new Error("No matches played yet or unable to determine winner")
+    }
+
+    const updatedMatch = await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        status: "FINISHED",
+        winner: winner,
+        afterSnapshot1: JSON.stringify(player1After),
+        afterSnapshot2: JSON.stringify(player2After),
+        finishedAt: new Date()
+      },
+      include: {
+        creator: true,
+        joiner: true
+      }
+    })
+
+    return updatedMatch
+  } catch (err) {
+    console.error("Error submitting Fortnite match result:", err)
+    throw err
+  }
+}
+
+export async function createRocketLeagueMatch(
+  username: string,
+  playerName: string,
+  platform: string = 'steam'
+) {
+  try {
+    const playerData = await getRocketLeaguePlayer(playerName, platform)
+
+    if (!playerData) {
+      throw new Error("Rocket League player not found. Check your username and platform!")
+    }
+
+    const snapshot = await captureRocketLeagueSnapshot(playerName, platform)
+    
+    if (!snapshot) {
+      throw new Error("Failed to capture player stats. Make sure your profile is public!")
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { username }
+    })
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: { username }
+      })
+    }
+
+    const match = await prisma.match.create({
+      data: {
+        gameType: "ROCKET_LEAGUE",
+        creatorId: user.id,
+        summonerName1: playerName,
+        summonerPuuid1: playerData.platformId,
+        platform1: platform,
+        beforeSnapshot1: JSON.stringify(snapshot),
+        status: 'WAITING'
+      },
+      include: {
+        creator: true
+      }
+    })
+
+    return match
+
+  } catch (error) {
+    console.error("Error creating Rocket League match:", error)
+    throw error
+  }
+}
+
+export async function joinRocketLeagueMatch(
+  matchId: string,
+  username: string,
+  playerName: string,
+  platform: string = 'steam'
+) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId }
+    })
+
+    if (!match || match.gameType !== "ROCKET_LEAGUE") {
+      throw new Error("Match not found!")
+    }
+
+    if (match.status !== 'WAITING') {
+      throw new Error("Match is no longer available")
+    }
+
+    const playerData = await getRocketLeaguePlayer(playerName, platform)
+
+    if (!playerData) {
+      throw new Error("Rocket League player not found. Check your username and platform!")
+    }
+
+    const snapshot = await captureRocketLeagueSnapshot(playerName, platform)
+    
+    if (!snapshot) {
+      throw new Error("Failed to capture player stats. Make sure your profile is public!")
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { username }
+    })
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: { username }
+      })
+    }
+
+    const updatedMatch = await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        joinerId: user.id,
+        summonerName2: playerName,
+        summonerPuuid2: playerData.platformId,
+        platform2: platform,
+        beforeSnapshot2: JSON.stringify(snapshot),
+        status: 'PLAYING',
+        startedAt: new Date()
+      },
+      include: {
+        creator: true,
+        joiner: true
+      }
+    })
+
+    return updatedMatch
+  } catch (err) {
+    console.error("Error joining Rocket League match:", err)
+    throw err
+  }
+}
+
+export async function getOpenRocketLeagueMatches() {
+  return await prisma.match.findMany({
+    where: {
+      gameType: 'ROCKET_LEAGUE',
+      status: 'WAITING'
+    },
+    include: {
+      creator: true
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  })
+}
+
+export async function getAllRocketLeagueMatches() {
+  return await prisma.match.findMany({
+    where: {
+      gameType: 'ROCKET_LEAGUE'
+    },
+    include: {
+      creator: true,
+      joiner: true
+    },
+    orderBy: {
+      createdAt: 'desc'
+    }
+  })
+}
+
+export async function getRocketLeagueMatchById(matchId: string) {
+  return await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      creator: true,
+      joiner: true
+    }
+  })
+}
+
+export async function checkRocketLeagueMatchResult() {
+  try {
+    const playingMatches = await prisma.match.findMany({
+      where: {
+        gameType: "ROCKET_LEAGUE",
+        status: "PLAYING"
+      }
+    })
+
+    for (const match of playingMatches) {
+      if (!match.summonerName1 || !match.summonerName2 || 
+          !match.beforeSnapshot1 || !match.beforeSnapshot2) {
+        continue
+      }
+
+      const timeSinceStart = Date.now() - (match.startedAt?.getTime() || 0)
+      if (timeSinceStart < 10 * 60 * 1000) {
+        continue
+      }
+
+      const player1After = await captureRocketLeagueSnapshot(
+        match.summonerName1,
+        match.platform1 || 'steam'
+      )
+      const player2After = await captureRocketLeagueSnapshot(
+        match.summonerName2,
+        match.platform2 || 'steam'
+      )
+
+      if (!player1After || !player2After) {
+        continue
+      }
+
+      const player1Before: RocketLeagueSnapshot = JSON.parse(match.beforeSnapshot1)
+      const player2Before: RocketLeagueSnapshot = JSON.parse(match.beforeSnapshot2)
+
+      const winner = determineRocketLeagueWinner(
+        player1Before,
+        player1After,
+        player2Before,
+        player2After
+      )
+
+      if (winner) {
+        await prisma.match.update({
+          where: { id: match.id },
+          data: {
+            status: "FINISHED",
+            winner: winner,
+            afterSnapshot1: JSON.stringify(player1After),
+            afterSnapshot2: JSON.stringify(player2After),
+            finishedAt: new Date()
+          }
+        })
+
+        console.log(`✅ Rocket League Match ${match.id} finished! Winner: ${winner}`)
+      }
+    }
+
+  } catch (err) {
+    console.error("Error checking Rocket League match results:", err)
+    throw err
+  }
+}
+
+export async function submitRocketLeagueMatchResult(matchId: string) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId }
+    })
+
+    if (!match || match.gameType !== "ROCKET_LEAGUE" || match.status !== "PLAYING") {
+      throw new Error("Invalid match")
+    }
+
+    if (!match.summonerName1 || !match.summonerName2 || 
+        !match.beforeSnapshot1 || !match.beforeSnapshot2) {
+      throw new Error("Match data incomplete")
+    }
+
+    const player1After = await captureRocketLeagueSnapshot(
+      match.summonerName1,
+      match.platform1 || 'steam'
+    )
+    const player2After = await captureRocketLeagueSnapshot(
+      match.summonerName2,
+      match.platform2 || 'steam'
+    )
+
+    if (!player1After || !player2After) {
+      throw new Error("Failed to capture current stats")
+    }
+
+    const player1Before: RocketLeagueSnapshot = JSON.parse(match.beforeSnapshot1)
+    const player2Before: RocketLeagueSnapshot = JSON.parse(match.beforeSnapshot2)
+
+    const winner = determineRocketLeagueWinner(
+      player1Before,
+      player1After,
+      player2Before,
+      player2After
+    )
+
+    if (!winner) {
+      throw new Error("No matches played yet or unable to determine winner")
+    }
+
+    const updatedMatch = await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        status: "FINISHED",
+        winner: winner,
+        afterSnapshot1: JSON.stringify(player1After),
+        afterSnapshot2: JSON.stringify(player2After),
+        finishedAt: new Date()
+      },
+      include: {
+        creator: true,
+        joiner: true
+      }
+    })
+
+    return updatedMatch
+  } catch (err) {
+    console.error("Error submitting Rocket League match result:", err)
     throw err
   }
 }

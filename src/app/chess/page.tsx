@@ -52,7 +52,7 @@ const ChessInterface = () => {
       const openMatches = await getOpenMatches()
       setMatches(openMatches as any)
       
-    }, 15000) 
+    }, 100000000) //will cahnge it later 
 
     return () => clearInterval(interval)
   }, [matches, myActiveMatches])

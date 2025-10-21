@@ -208,55 +208,91 @@ export async function joinLoLMatch(matchId: string, username: string, summonerNa
   }
 }
 
+export async function getOpenLOLMatches(){
+  return await prisma.match.findMany({
+    where:{
+      gameType: "LOL",
+      status: "WAITING"
+    },
+    include: {
+      creator: true
+    },
+    orderBy: {
+      createdAt : 'desc'
+    }
+  })
+}
+
+
+export async function getAllLOLMatches(){
+  return await prisma.match.findMany({
+    where:{
+      gameType :"LOL"
+    },
+    include: {
+      creator: true,
+      joiner: true
+    },
+    orderBy :{
+      createdAt: "desc"
+    }
+  })
+}
+
+export async function getLOLMatchById(matchId: string){
+  return await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      creator: true,
+      joiner: true
+    }
+  })
+}
 
 export async function CheckLOLMatchResult() {
-
-  try{
-
+  try {
     const playingMatches = await prisma.match.findMany({
-      where:{
+      where: {
         gameType: "LOL",
         status: "PLAYING"
       }
     })
 
-    for (const match of playingMatches){
-      if(!match.summonerPuuid1 || !match.summonerPuuid2 || !match.region){
+    for (const match of playingMatches) {
+      if (!match.summonerPuuid1 || !match.summonerPuuid2 || !match.region) {
         continue
       }
-    
 
-    const riotMatch = await findMatchBetweenPlayers(
-      match.summonerPuuid1,
-      match.summonerPuuid2,
-      match.region,
-      match.createdAt.getTime()
-    )
-
-    if(riotMatch){
-      const winner = determineWinner(
-        riotMatch,
-       match.summonerPuuid1,
-       match.summonerPuuid2
+      const riotMatch = await findMatchBetweenPlayers(
+        match.summonerPuuid1,
+        match.summonerPuuid2,
+        match.region,
+        match.createdAt.getTime()
       )
-    
 
-    await prisma.match.update({
-      where:{id:match.id},
-      data:{
-        status: "FINISHED",
-        winner: winner,
-        riotMatchId: riotMatch?.metadata.matchId,
-        finishedAt: new Date()
+      if (riotMatch) {
+        const winner = determineWinner(
+          riotMatch,
+          match.summonerPuuid1,
+          match.summonerPuuid2
+        )
+
+        await prisma.match.update({
+          where: { id: match.id },
+          data: {
+            status: "FINISHED",
+            winner: winner,
+            riotMatchId: riotMatch?.metadata.matchId,
+            finishedAt: new Date()
+          }
+        })
+
+        console.log(`✅ LoL Match ${match.id} finished! Winner: ${winner}`)
       }
-    })
+    }
 
-    console.log(`✅ LoL Match ${match.id} finished! Winner: ${winner}`)
-
-  }}
-
-  }catch(err){
-    console.error("Error while fetching the match result::::",err)
+  } catch (err) {
+    console.error("Error checking LOL match results:", err)
     throw err
   }
 }

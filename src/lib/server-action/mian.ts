@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import axios from 'axios'
 import { determineValorantWinner, determineWinner, findMatchBetweenPlayers, findValorantMatchBetweenPlayers, getSummonerByName, getValorantAccount } from './riot-api'
 import { determineDotaWinner, findDotaMatchBetweenPlayers, getDotaPlayer } from './dota-api'
+import { captureCSGOStatsSnapshot, compareCSGOSnapshots, CSGOMatchSnapshot, getSteamPlayer, isValidSteamId, resolveSteamVanityURL } from './steam-api'
 
 export async function createMatch(username: string, gameId: string, url: string) {
   let user = await prisma.user.findUnique({
@@ -677,6 +678,230 @@ export async function CheckDota2MatchResult() {
 
   } catch (err) {
     console.error("Error checking Dota 2 match results:", err)
+    throw err
+  }
+}
+
+export async function CreateCSGOMatch(
+  username: string,
+  steamId: string,
+  playerName: string
+){
+  try{
+
+    let finalSteamId = steamId
+    if(!isValidSteamId(steamId)){
+       const resolved = await resolveSteamVanityURL(steamId)
+      if (!resolved) {
+        throw new Error("Invalid Steam ID or profile URL. Use your 17-digit Steam ID or custom URL.")
+      }
+      finalSteamId = resolved
+    }
+
+    const playerData = await getSteamPlayer(finalSteamId)
+     if (!playerData) {
+      throw new Error("Steam player not found. Check your Steam ID!")
+    }
+
+    const statsSnapshot = await captureCSGOStatsSnapshot(finalSteamId)
+    if (!statsSnapshot) {
+      throw new Error("Could not fetch CS:GO stats. Make sure your profile is public and you own CS:GO!")
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { username }
+    })
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: { username }
+      })
+    }
+
+    const match = await prisma.match.create({
+      data: {
+        gameType: "CSGO",
+        creatorId: user.id,
+        summonerName1: playerName || playerData.personaname,
+        summonerPuuid1: finalSteamId,
+        statsSnapshotBefore: statsSnapshot as any, 
+        status: 'WAITING'
+      },
+      include: {
+        creator: true
+      }
+    })
+
+    return match
+  }catch(err){
+    console.error("Error creating cs go match ::::",err)
+  }
+}
+
+export async function joinCSGOMatch(matchId: string, username: string, steamId: string, playerName?: string) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId }
+    })
+
+    if (!match || match.gameType !== "CSGO") {
+      throw new Error("Match not found!")
+    }
+
+    if (match.status !== 'WAITING') {
+      throw new Error("Match is no longer available")
+    }
+
+    // Resolve vanity URL if needed
+    let finalSteamId = steamId
+    if (!isValidSteamId(steamId)) {
+      const resolved = await resolveSteamVanityURL(steamId)
+      if (!resolved) {
+        throw new Error("Invalid Steam ID or profile URL")
+      }
+      finalSteamId = resolved
+    }
+
+    // Verify player
+    const playerData = await getSteamPlayer(finalSteamId)
+    if (!playerData) {
+      throw new Error("Steam player not found!")
+    }
+
+    // Capture stats snapshot for joiner
+    const statsSnapshot = await captureCSGOStatsSnapshot(finalSteamId)
+    if (!statsSnapshot) {
+      throw new Error("Could not fetch CS:GO stats. Make sure your profile is public!")
+    }
+
+    let user = await prisma.user.findUnique({
+      where: { username }
+    })
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: { username }
+      })
+    }
+
+    const currentSnapshot = match.statsSnapshotBefore as any
+    currentSnapshot.player2 = statsSnapshot
+
+    const updatedMatch = await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        joinerId: user.id,
+        summonerName2: playerName || playerData.personaname,
+        summonerPuuid2: finalSteamId,
+        statsSnapshotBefore: currentSnapshot,
+        status: 'PLAYING'
+      },
+      include: {
+        creator: true,
+        joiner: true
+      }
+    })
+
+    return updatedMatch
+  } catch (err) {
+    console.error("Error joining CS:GO match:", err)
+    throw err
+  }
+}
+
+export async function getOpenCSGOMatches(){
+  return await prisma.match.findMany({
+    where:{
+      gameType: "CSGO",
+      status: "WAITING"
+    },
+    include: {
+      creator: true
+    },
+    orderBy: {
+      createdAt : "desc"
+    }
+  })
+}
+
+export async function getAllCSGOMatches(){
+  return await prisma.match.findMany({
+    where: {
+      gameType: "CSGO"
+    },
+    include:{
+      creator: true,
+      joiner: true
+    },
+    orderBy: {
+      createdAt: "desc"
+    }
+  })
+}
+
+export async function getCSGOMatchById(matchId: string){
+  return await prisma.match.findUnique({
+    where:{id:matchId},
+    include:{
+      creator:true,
+      joiner:true
+    }
+  })
+}
+
+export async function checkCSGOMatchResult(){
+  try{
+    const playingMatches = await prisma.match.findMany({
+      where:{
+        gameType: "CSGO",
+        status: "PLAYING"
+      }
+    })
+
+    for ( const match of playingMatches){
+      if(!match.summonerPuuid1 || !match.summonerPuuid2 || !match.statsSnapshotBefore){
+        continue
+      }
+
+      const currentStats1 = await captureCSGOStatsSnapshot(match.summonerPuuid1)
+      const currentStats2 = await captureCSGOStatsSnapshot(match.summonerPuuid2)
+
+      if (!currentStats1 || !currentStats2) {
+        continue
+      }
+
+      const beforeSnapshot = match.statsSnapshotBefore as any
+      const beforeStats1 = beforeSnapshot as CSGOMatchSnapshot
+      const beforeStats2 = beforeSnapshot.player2 as CSGOMatchSnapshot
+
+
+    const result = compareCSGOSnapshots(
+        beforeStats1,
+        currentStats1,
+        beforeStats2,
+        currentStats2
+      )
+
+      if (result) {
+        await prisma.match.update({
+          where: { id: match.id },
+          data: {
+            status: "FINISHED",
+            winner: result,
+            statsSnapshotAfter: {
+              player1: currentStats1,
+              player2: currentStats2
+            } as any,
+            finishedAt: new Date()
+          }
+        })
+
+        console.log(`✅ CS:GO Match ${match.id} finished! Winner: ${result}`)
+      }
+    }
+
+  } catch (err) {
+    console.error("Error checking CS:GO match results:", err)
     throw err
   }
 }

@@ -28,13 +28,16 @@ model Match {
   gameId      String?  
   url         String?
   
-  // League of Legends specific
-  summonerName1   String?  // Creator's summoner name
-  summonerName2   String?  // Joiner's summoner name
-  summonerPuuid1  String?  // Creator's PUUID
-  summonerPuuid2  String?  // Joiner's PUUID
-  region          String?  // na1, euw1, kr, etc.
-  riotMatchId     String?  // Riot match ID when detected
+  // League of Legends 
+  summonerName1   String?
+  summonerName2   String?  
+  summonerPuuid1  String?
+  summonerPuuid2  String?  
+  region          String?  
+  riotMatchId     String?  
+
+  statsSnapshotBefore Json?
+  statsSnapshotAfter  Json?
   
   wager       Float    @default(0)
   status      Status   @default(WAITING)

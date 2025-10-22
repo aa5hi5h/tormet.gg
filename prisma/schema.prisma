@@ -74,6 +74,11 @@ enum GameType {
   CSGO
   FORTNITE
   ROCKET_LEAGUE
+  CLASH_ROYALE
+  PUBG_PC
+  PUBG_MOBILE
+  CLASH_OF_CLANS
+  BRAWL_STARS
 }
 
 enum Status {

@@ -9,6 +9,7 @@ import { captureRocketLeagueSnapshot, determineRocketLeagueWinner, getRocketLeag
 import { determineClashRoyaleWinner, findClashRoyaleBattleBetweenPlayers, formatClashRoyaleTag, getClashRoyalePlayer, isValidClashRoyaleTag } from './clash-royale-api'
 import { determineBrawlStarsWinner, findBrawlStarsBattleBetweenPlayers, formatBrawlStarsTag, getBrawlStarsPlayer, isValidBrawlStarsTag } from './brawl-star-api'
 import { determineClanWarWinner, findWarBetweenClans, formatClanTag, getClan, getCurrentWar, getTimeRemaining, getWarState } from './coc-api'
+import { capturePlayerStatsSnapshot, comparePUBGSnapshots, getPlayerByName, PUBGPlatform, PUBGPlayerStats, validatePUBGPlayer } from './pubg-api'
 
 export async function createMatch(username: string, gameId: string, url: string) {
   let user = await prisma.user.findUnique({
@@ -2252,6 +2253,342 @@ export async function getClanWarMatchStats(matchId: string) {
     }
   } catch (error) {
     console.error('Error getting match stats:', error)
+    return null
+  }
+}
+
+
+export async function createPUBGMatch(
+  username: string,
+  playerName: string,
+  platform: PUBGPlatform = 'steam',
+  wager: number = 0
+) {
+  try {
+    // Validate player exists
+    const validation = await validatePUBGPlayer(playerName, platform)
+    if (!validation.valid) {
+      throw new Error(validation.error || 'Invalid player')
+    }
+
+    // Get user
+    const user = await prisma.user.findUnique({
+      where: { username }
+    })
+
+    if (!user) {
+      throw new Error('User not found. Please sign up first.')
+    }
+
+    // Get player data
+    const player = await getPlayerByName(playerName, platform)
+    if (!player) {
+      throw new Error('Failed to fetch player data')
+    }
+
+    // Capture initial stats
+    const initialStats = await capturePlayerStatsSnapshot(player.id, platform)
+    if (!initialStats) {
+      throw new Error('Failed to capture player stats. Player may have no recent matches.')
+    }
+
+    // Create match
+    const match = await prisma.match.create({
+      data: {
+        gameType: 'PUBG_PC',
+        status: 'WAITING',
+        wager: wager,
+        creatorId: user.id,
+        summonerName1: playerName,
+        summonerPuuid1: player.id, // Store PUBG account ID
+        region: platform, // Store platform in region field
+        statsSnapshotBefore: {
+          player1: initialStats,
+          timestamp: Date.now(),
+          platform: platform
+        } as any
+      },
+      include: {
+        creator: true
+      }
+    })
+
+    console.log(`✅ PUBG match created: ${match.id}`)
+    return match
+  } catch (error: any) {
+    console.error('Error creating PUBG match:', error)
+    throw new Error(error.message || 'Failed to create PUBG match')
+  }
+}
+
+export async function joinPUBGMatch(
+  matchId: string,
+  username: string,
+  playerName: string
+) {
+  try {
+    // Get match
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { creator: true }
+    })
+
+    if (!match) {
+      throw new Error('Match not found')
+    }
+
+    if (match.status !== 'WAITING') {
+      throw new Error('Match is no longer available')
+    }
+
+    const platform = (match.region as PUBGPlatform) || 'steam'
+
+    // Validate player exists
+    const validation = await validatePUBGPlayer(playerName, platform)
+    if (!validation.valid) {
+      throw new Error(validation.error || 'Invalid player')
+    }
+
+    // Get user
+    const user = await prisma.user.findUnique({
+      where: { username }
+    })
+
+    if (!user) {
+      throw new Error('User not found. Please sign up first.')
+    }
+
+    if (match.creatorId === user.id) {
+      throw new Error('You cannot join your own match')
+    }
+
+    // Check if same player
+    if (match.summonerName1?.toLowerCase() === playerName.toLowerCase()) {
+      throw new Error('Cannot match against the same player!')
+    }
+
+    // Get player data
+    const player = await getPlayerByName(playerName, platform)
+    if (!player) {
+      throw new Error('Failed to fetch player data')
+    }
+
+    // Capture initial stats for joiner
+    const initialStats = await capturePlayerStatsSnapshot(player.id, platform)
+    if (!initialStats) {
+      throw new Error('Failed to capture player stats. Player may have no recent matches.')
+    }
+
+    const beforeSnapshot = match.statsSnapshotBefore as any
+
+    // Update match
+    const updatedMatch = await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        joinerId: user.id,
+        summonerName2: playerName,
+        summonerPuuid2: player.id,
+        status: 'PLAYING',
+        statsSnapshotBefore: {
+          ...beforeSnapshot,
+          player2: initialStats
+        }
+      },
+      include: {
+        creator: true,
+        joiner: true
+      }
+    })
+
+    console.log(`✅ Player joined PUBG match: ${matchId}`)
+    return updatedMatch
+  } catch (error: any) {
+    console.error('Error joining PUBG match:', error)
+    throw new Error(error.message || 'Failed to join PUBG match')
+  }
+}
+
+export async function getOpenPUBGMatches(){
+  return await prisma.match.findMany({
+    where:{
+      gameType: "PUBG_PC",
+      status: "WAITING"
+    },
+    include:{
+      creator: true
+    },
+    orderBy:{
+      createdAt: "desc"
+    }
+  })
+}
+
+export async function getAllPUBGMatches(){
+  return await prisma.match.findMany({
+    where: {
+      gameType: "PUBG_PC"
+    },
+    include:{
+      joiner: true,
+      creator: true
+    },
+    orderBy: {
+      createdAt: "desc"
+    }    
+  })
+}
+
+export async function getPUBGMatchById(matchId: string){
+  return await prisma.match.findUnique({
+    where:{id:matchId},
+    include:{
+      creator: true,
+      joiner:true
+    }
+  })
+}
+
+export async function checkPUBGMatchResult() {
+  try {
+    const playingMatches = await prisma.match.findMany({
+      where: {
+        gameType: 'PUBG_PC',
+        status: 'PLAYING'
+      }
+    })
+
+    console.log(`🔍 Checking ${playingMatches.length} active PUBG matches...`)
+
+    for (const match of playingMatches) {
+      if (!match.summonerPuuid1 || !match.summonerPuuid2 || !match.statsSnapshotBefore) {
+        console.log(`⚠️ Match ${match.id} missing required data`)
+        continue
+      }
+
+      try {
+        const platform = (match.region as PUBGPlatform) || 'steam'
+
+        // Get current stats for both players
+        const currentStats1 = await capturePlayerStatsSnapshot(match.summonerPuuid1, platform)
+        const currentStats2 = await capturePlayerStatsSnapshot(match.summonerPuuid2, platform)
+
+        if (!currentStats1 || !currentStats2) {
+          console.log(`⏳ Waiting for stats for match ${match.id}`)
+          continue
+        }
+
+        const beforeSnapshot = match.statsSnapshotBefore as any
+        const beforeStats1 = beforeSnapshot.player1 as PUBGPlayerStats
+        const beforeStats2 = beforeSnapshot.player2 as PUBGPlayerStats
+
+        // Compare stats to determine winner
+        const result = comparePUBGSnapshots(
+          beforeStats1,
+          currentStats1,
+          beforeStats2,
+          currentStats2
+        )
+
+        if (result) {
+          // Calculate stat differences for logging
+          const player1Wins = (currentStats1.wins || 0) - (beforeStats1.wins || 0)
+          const player2Wins = (currentStats2.wins || 0) - (beforeStats2.wins || 0)
+          const player1Kills = (currentStats1.kills || 0) - (beforeStats1.kills || 0)
+          const player2Kills = (currentStats2.kills || 0) - (beforeStats2.kills || 0)
+
+          await prisma.match.update({
+            where: { id: match.id },
+            data: {
+              status: 'FINISHED',
+              winner: result, // No await needed - comparePUBGSnapshots returns string directly
+              statsSnapshotAfter: {
+                player1: currentStats1,
+                player2: currentStats2,
+                differences: {
+                  player1: {
+                    wins: player1Wins,
+                    kills: player1Kills,
+                    damage: (currentStats1.damageDealt || 0) - (beforeStats1.damageDealt || 0)
+                  },
+                  player2: {
+                    wins: player2Wins,
+                    kills: player2Kills,
+                    damage: (currentStats2.damageDealt || 0) - (beforeStats2.damageDealt || 0)
+                  }
+                },
+                timestamp: Date.now()
+              } as any, // Cast to any for Prisma JSON
+              finishedAt: new Date()
+            }
+          })
+
+          console.log(`✅ PUBG Match ${match.id} finished! Winner: ${result}`)
+          console.log(`   ${match.summonerName1}: ${player1Wins} wins, ${player1Kills} kills`)
+          console.log(`   ${match.summonerName2}: ${player2Wins} wins, ${player2Kills} kills`)
+        } else {
+          console.log(`⏳ No conclusive result yet for match ${match.id}`)
+        }
+      } catch (matchError) {
+        console.error(`Error processing PUBG match ${match.id}:`, matchError)
+        continue
+      }
+    }
+
+    return { success: true }
+  } catch (error) {
+    console.error('Error checking PUBG match results:', error)
+    throw error
+  }
+}
+
+export async function cancelPUBGMatch(matchId: string, username: string) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { creator: true }
+    })
+
+    if (!match) {
+      throw new Error('Match not found')
+    }
+
+    if (match.creator.username !== username) {
+      throw new Error('Only the match creator can cancel')
+    }
+
+    if (match.status !== 'WAITING') {
+      throw new Error('Can only cancel matches that are waiting')
+    }
+
+    await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        status: 'CANCELLED'
+      }
+    })
+
+    console.log(`❌ PUBG Match ${matchId} cancelled by ${username}`)
+    return { success: true }
+  } catch (error: any) {
+    console.error('Error cancelling match:', error)
+    throw new Error(error.message || 'Failed to cancel match')
+  }
+}
+
+export async function getPUBGPlayerCurrentStats(
+  playerName: string,
+  platform: PUBGPlatform = 'steam'
+) {
+  try {
+    const player = await getPlayerByName(playerName, platform)
+    if (!player) {
+      return null
+    }
+
+    const stats = await capturePlayerStatsSnapshot(player.id, platform)
+    return stats
+  } catch (error) {
+    console.error('Error getting player stats:', error)
     return null
   }
 }

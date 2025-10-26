@@ -10,6 +10,9 @@ import { determineClashRoyaleWinner, findClashRoyaleBattleBetweenPlayers, format
 import { determineBrawlStarsWinner, findBrawlStarsBattleBetweenPlayers, formatBrawlStarsTag, getBrawlStarsPlayer, isValidBrawlStarsTag } from './brawl-star-api'
 import { determineClanWarWinner, findWarBetweenClans, formatClanTag, getClan, getCurrentWar, getTimeRemaining, getWarState } from './coc-api'
 import { capturePlayerStatsSnapshot, comparePUBGSnapshots, getPlayerByName, PUBGPlatform, PUBGPlayerStats, validatePUBGPlayer } from './pubg-api'
+import { NextRequest, NextResponse } from 'next/server'
+import { processDrawPayout, processRefund, processWinnerPayout } from '../solana-escrow'
+import { Keypair } from '@solana/web3.js'
 
 export async function createMatch(username: string, gameId: string, url: string) {
   let user = await prisma.user.findUnique({
@@ -2590,5 +2593,367 @@ export async function getPUBGPlayerCurrentStats(
   } catch (error) {
     console.error('Error getting player stats:', error)
     return null
+  }
+}
+
+export async function createMatchWithEscrow(
+  username:string,
+  gameType: string,
+  wagerAmount: number,
+  walletAddress: string,
+  txHash: string,
+  gameSpecificData: any
+){
+  try{
+
+    const user = await prisma.user.findUnique({
+      where:{username}
+    })
+
+    if(!username){
+      throw new Error("User not found")
+    }
+
+    if(!user?.wallet){
+      await prisma.user.update({
+        where: {username},
+        data:{
+          wallet: walletAddress
+        }
+      })
+    }
+
+    const match = await prisma.match.create({
+      data:{
+        gameType: gameType as any,
+        status: "WAITING",
+        wager: wagerAmount,
+        creatorId: user?.id,
+        createTxHash: txHash,
+        ...gameSpecificData
+      },
+      include:{
+        creator: true
+      }
+    })
+
+    console.log(`match created with escrow: ${match.id}, TX: ${txHash}`)
+    return match
+  }catch(err:any){
+    console.error("Error creating match with escrow ::::",err)
+    throw new Error(err.message || "Failed to create match with escrow ")
+  }
+}
+
+export async function joinMatchWithEscrow(
+  username:string,
+  matchId: string,
+  walletAddress: string,
+  txHash: string,
+  gameSpecificData: any
+){
+  try{
+
+    const match = await prisma.match.findUnique({
+      where:{id:matchId}
+    })
+
+    if(!match){
+      throw new Error("Match not fonud")
+    }
+
+    if(match.status !== "WAITING"){
+      throw new Error("Match is not available to join")
+    }
+
+    const user = await prisma.user.findUnique({
+      where:{username}
+    })
+
+    if(!user){
+      throw new Error("User not found")
+    }
+
+    if(!user.wallet){
+      await prisma.user.update({
+        where:{username},
+        data:{wallet: walletAddress}
+      })
+    }
+
+    const updatedMatch = await prisma.match.update({
+      where: {id:matchId},
+      data:{
+        joinerId: user.id,
+        joinTxHash: txHash,
+        status: "PLAYING",
+        ...gameSpecificData
+      },
+      include:{
+        creator: true,
+        joiner: true
+      }
+    })
+
+     console.log(`✅ Player joined match with escrow: ${matchId}, TX: ${txHash}`)
+    return updatedMatch
+  } catch (error: any) {
+    console.error('Error joining match with escrow:', error)
+    throw new Error(error.message || 'Failed to join match')
+  }
+}
+
+export async function finishMatchAndPayout(
+  matchId: string,
+  winner: 'CREATOR' | 'JOINER' | 'DRAW',
+  statsAfter: any
+) {
+  try {
+    // Update match status
+    const match = await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        status: 'FINISHED',
+        winner: winner,
+        finishedAt: new Date(),
+        statsSnapshotAfter: statsAfter as any
+      },
+      include: {
+        creator: true,
+        joiner: true
+      }
+    })
+
+    console.log(`🏆 Match finished: ${matchId}, Winner: ${winner}`)
+
+    try {
+      const payoutResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/payout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ matchId })
+      })
+
+      const payoutData = await payoutResponse.json()
+
+      if (payoutData.success) {
+        console.log(`💰 Payout processed automatically! TX: ${payoutData.txHash}`)
+      } else {
+        console.error(`⚠️ Payout failed: ${payoutData.error}`)
+      }
+    } catch (payoutError) {
+      console.error('Error triggering automatic payout:', payoutError)
+    }
+
+    return match
+  } catch (error: any) {
+    console.error('Error finishing match:', error)
+    throw new Error(error.message || 'Failed to finish match')
+  }
+}
+
+export async function getMatchPayoutStatus(matchId: string) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        creator: true,
+        joiner: true
+      }
+    })
+
+    if (!match) {
+      throw new Error('Match not found')
+    }
+
+    return {
+      matchId: match.id,
+      status: match.status,
+      winner: match.winner,
+      wager: match.wager,
+      createTxHash: match.createTxHash,
+      joinTxHash: match.joinTxHash,
+      payoutTxHash: match.payoutTxHash,
+      winnerAmount: match.wager * 0.95,
+      platformFee: match.wager * 0.05,
+      isPaid: !!match.payoutTxHash
+    }
+  } catch (error: any) {
+    console.error('Error getting payout status:', error)
+    throw new Error(error.message || 'Failed to get payout status')
+  }
+}
+
+export async function retryPayout(matchId: string) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId }
+    })
+
+    if (!match) {
+      throw new Error('Match not found')
+    }
+
+    if (match.status !== 'FINISHED') {
+      throw new Error('Match is not finished')
+    }
+
+    if (match.payoutTxHash) {
+      throw new Error('Payout already processed')
+    }
+
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/payout`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ matchId })
+    })
+
+    const data = await response.json()
+
+    if (!data.success) {
+      throw new Error(data.error || 'Payout failed')
+    }
+
+    console.log(`✅ Payout retry successful! TX: ${data.txHash}`)
+    return data
+  } catch (error: any) {
+    console.error('Error retrying payout:', error)
+    throw new Error(error.message || 'Failed to retry payout')
+  }
+}
+
+export async function cancelMatchAndRefund(matchId: string, username: string) {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { creator: true, joiner: true }
+    })
+
+    if (!match) {
+      throw new Error('Match not found')
+    }
+
+    if (match.creator.username !== username) {
+      throw new Error('Only creator can cancel match')
+    }
+
+    if (match.status === 'FINISHED') {
+      throw new Error('Cannot cancel finished match')
+    }
+    
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/payout`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ matchId })
+    })
+
+    const data = await response.json()
+
+    if (!data.success) {
+      throw new Error(data.error || 'Refund failed')
+    }
+
+    console.log(`🔄 Match cancelled and refunds processed: ${matchId}`)
+    return data
+  } catch (error: any) {
+    console.error('Error cancelling match:', error)
+    throw new Error(error.message || 'Failed to cancel match')
+  }
+}
+
+export async function getUserTransactionHistory(username: string) {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { username },
+      include: {
+        createdMatches: {
+          orderBy: { createdAt: 'desc' },
+          take: 20
+        },
+        joinedMatches: {
+          orderBy: { createdAt: 'desc' },
+          take: 20
+        }
+      }
+    })
+
+    if (!user) {
+      throw new Error('User not found')
+    }
+
+    const allMatches = [
+      ...user.createdMatches.map(m => ({ ...m, role: 'creator' })),
+      ...user.joinedMatches.map(m => ({ ...m, role: 'joiner' }))
+    ].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+
+    return {
+      user: {
+        username: user.username,
+        wallet: user.wallet,
+        balance: user.balance
+      },
+      matches: allMatches.map(match => ({
+        id: match.id,
+        gameType: match.gameType,
+        status: match.status,
+        winner: match.winner,
+        wager: match.wager,
+        role: match.role,
+        createTxHash: match.createTxHash,
+        joinTxHash: match.joinTxHash,
+        payoutTxHash: match.payoutTxHash,
+        createdAt: match.createdAt,
+        finishedAt: match.finishedAt,
+        isWinner: match.status === 'FINISHED' && 
+                  ((match.role === 'creator' && match.winner === 'CREATOR') ||
+                   (match.role === 'joiner' && match.winner === 'JOINER')),
+        isDraw: match.winner === 'DRAW'
+      }))
+    }
+  } catch (error: any) {
+    console.error('Error getting transaction history:', error)
+    throw new Error(error.message || 'Failed to get transaction history')
+  }
+}
+
+export async function getPlatformStats() {
+  try {
+    const totalMatches = await prisma.match.count()
+    const finishedMatches = await prisma.match.count({
+      where: { status: 'FINISHED' }
+    })
+    const activeMatches = await prisma.match.count({
+      where: { status: 'PLAYING' }
+    })
+
+    const totalWagered = await prisma.match.aggregate({
+      where: { status: 'FINISHED' },
+      _sum: { wager: true }
+    })
+
+    const totalPaidOut = await prisma.match.aggregate({
+      where: { 
+        status: 'FINISHED',
+        payoutTxHash: { not: null }
+      },
+      _sum: { wager: true }
+    })
+
+    return {
+      totalMatches,
+      finishedMatches,
+      activeMatches,
+      totalWagered: totalWagered._sum.wager || 0,
+      totalPaidOut: (totalPaidOut._sum.wager || 0) * 0.95,
+      platformFees: (totalPaidOut._sum.wager || 0) * 0.05
+    }
+  } catch (error: any) {
+    console.error('Error getting platform stats:', error)
+    throw new Error(error.message || 'Failed to get platform stats')
   }
 }

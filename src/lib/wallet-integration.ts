@@ -6,7 +6,7 @@ import {
   SystemProgram,
   LAMPORTS_PER_SOL
 } from '@solana/web3.js'
-
+import { useWallet, useConnection } from '@solana/wallet-adapter-react'
 
 declare global {
   interface Window {
@@ -18,65 +18,22 @@ const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.de
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed')
 const PLATFORM_WALLET = new PublicKey(process.env.NEXT_PUBLIC_PLATFORM_WALLET || '')
 
-export async function connectWallet(): Promise<{ 
-  success: boolean
-  publicKey?: string
-  error?: string 
-}> {
-  try {
-    if (!window.solana) {
-      return {
-        success: false,
-        error: 'Please install Phantom wallet or Solflare'
-      }
-    }
 
-    const response = await window.solana.connect()
-    const publicKey = response.publicKey.toString()
-
-    console.log('✅ Wallet connected:', publicKey)
-
-    return {
-      success: true,
-      publicKey
-    }
-  } catch (error: any) {
-    console.error('Error connecting wallet:', error)
-    return {
-      success: false,
-      error: error.message || 'Failed to connect wallet'
-    }
-  }
+export function formatWalletAddress(address: string): string {
+  if (address.length <= 8) return address
+  return `${address.slice(0, 4)}...${address.slice(-4)}`
 }
 
-export async function disconnectWallet(): Promise<void> {
-  try {
-    if (window.solana) {
-      await window.solana.disconnect()
-      console.log('👋 Wallet disconnected')
-    }
-  } catch (error) {
-    console.error('Error disconnecting wallet:', error)
-  }
+export function solToUSD(sol: number, solPrice: number = 100): string {
+  return (sol * solPrice).toFixed(2)
 }
 
-export function getConnectedWallet(): string | null {
+export async function getWalletBalance(
+  connection: Connection,
+  walletAddress: string
+): Promise<number> {
   try {
-    if (window.solana?.isConnected && window.solana.publicKey) {
-      return window.solana.publicKey.toString()
-    }
-    return null
-  } catch (error) {
-    return null
-  }
-}
-
-export async function getWalletBalance(walletAddress?: string): Promise<number> {
-  try {
-    const address = walletAddress || getConnectedWallet()
-    if (!address) return 0
-
-    const publicKey = new PublicKey(address)
+    const publicKey = new PublicKey(walletAddress)
     const balance = await connection.getBalance(publicKey)
     return balance / LAMPORTS_PER_SOL
   } catch (error) {
@@ -85,8 +42,10 @@ export async function getWalletBalance(walletAddress?: string): Promise<number> 
   }
 }
 
-
-export async function createMatchWithEscrow(
+export async function createEscrowTransaction(
+  connection: Connection,
+  publicKey: PublicKey,
+  sendTransaction: any,
   wagerAmount: number
 ): Promise<{
   success: boolean
@@ -94,17 +53,9 @@ export async function createMatchWithEscrow(
   error?: string
 }> {
   try {
-    if (!window.solana?.isConnected) {
-      return {
-        success: false,
-        error: 'Please connect your wallet first'
-      }
-    }
-
-    const playerPublicKey = window.solana.publicKey
     const lamports = Math.floor(wagerAmount * LAMPORTS_PER_SOL)
 
-    const balance = await getWalletBalance()
+    const balance = await getWalletBalance(connection, publicKey.toString())
     if (balance < wagerAmount) {
       return {
         success: false,
@@ -114,17 +65,12 @@ export async function createMatchWithEscrow(
 
     const transaction = new Transaction().add(
       SystemProgram.transfer({
-        fromPubkey: playerPublicKey,
+        fromPubkey: publicKey,
         toPubkey: PLATFORM_WALLET,
         lamports: lamports
       })
     )
-
-    const { blockhash } = await connection.getLatestBlockhash()
-    transaction.recentBlockhash = blockhash
-    transaction.feePayer = playerPublicKey
-
-    const { signature } = await window.solana.signAndSendTransaction(transaction)
+    const signature = await sendTransaction(transaction, connection)
 
     console.log('⏳ Confirming transaction...')
     await connection.confirmTransaction(signature, 'confirmed')
@@ -144,21 +90,6 @@ export async function createMatchWithEscrow(
   }
 }
 
-
-export function formatWalletAddress(address: string): string {
-  if (address.length <= 8) return address
-  return `${address.slice(0, 4)}...${address.slice(-4)}`
-}
-
-export function solToUSD(sol: number, solPrice: number = 100): string {
-  return (sol * solPrice).toFixed(2)
-}
-
-
-
-/**
- * Call this after match finishes to trigger payout
- */
 export async function triggerPayout(matchId: string): Promise<{
   success: boolean
   txHash?: string | string[]

@@ -16,7 +16,9 @@ const WalletConnectionProvider = ({children}:{children: React.ReactNode}) => {
     return (
         <ConnectionProvider endpoint={endpoint}>
             <WalletProvider wallets={[]} autoConnect>
-                {children}
+                <WalletModalProvider>
+                    {children}
+                </WalletModalProvider>
             </WalletProvider>
         </ConnectionProvider>
     )

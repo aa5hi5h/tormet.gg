@@ -1,99 +1,49 @@
 "use client"
 import { useState, useEffect } from "react"
 import { 
-  connectWallet, 
-  disconnectWallet, 
-  getConnectedWallet,
   getWalletBalance,
-  formatWalletAddress 
+  formatWalletAddress, 
+  createEscrowTransaction
 } from "@/lib/wallet-integration"
-import { createMatchWithEscrow as createEscrow } from "@/lib/wallet-integration"
+import { createEscrowTransaction as createEscrow } from "@/lib/wallet-integration"
 import { createMatchWithEscrow } from "../lib/server-action/mian"
 import { joinMatchWithEscrow } from "@/lib/server-action/mian"
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui"
+import { useConnection, useWallet } from "@solana/wallet-adapter-react"
 
 
 export default function WalletButton() {
-  const [wallet, setWallet] = useState<string | null>(null)
+  const { publicKey, connected } = useWallet()
+  const { connection } = useConnection()
   const [balance, setBalance] = useState<number>(0)
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    // Check if wallet is already connected
-    const connectedWallet = getConnectedWallet()
-    if (connectedWallet) {
-      setWallet(connectedWallet)
-      loadBalance(connectedWallet)
+    if (connected && publicKey) {
+      loadBalance()
     }
+  }, [connected, publicKey])
 
-    // Listen for wallet changes
-    if (window.solana) {
-      window.solana.on('connect', () => {
-        const pubKey = window.solana.publicKey?.toString()
-        setWallet(pubKey)
-        loadBalance(pubKey)
-      })
-
-      window.solana.on('disconnect', () => {
-        setWallet(null)
-        setBalance(0)
-      })
+  const loadBalance = async () => {
+    if (publicKey) {
+      const bal = await getWalletBalance(connection, publicKey.toString())
+      setBalance(bal)
     }
-  }, [])
-
-  const loadBalance = async (walletAddress: string) => {
-    const bal = await getWalletBalance(walletAddress)
-    setBalance(bal)
   }
 
-  const handleConnect = async () => {
-    setLoading(true)
-    const result = await connectWallet()
-    
-    if (result.success && result.publicKey) {
-      setWallet(result.publicKey)
-      loadBalance(result.publicKey)
-    } else {
-      alert(result.error)
-    }
-    setLoading(false)
-  }
-
-  const handleDisconnect = async () => {
-    await disconnectWallet()
-    setWallet(null)
-    setBalance(0)
-  }
-
-  if (wallet) {
+  if (connected && publicKey) {
     return (
-      <div className="flex items-center gap-3 bg-white/10 rounded-lg px-4 py-2">
-        <div className="text-sm">
-          <div className="font-semibold">{formatWalletAddress(wallet)}</div>
-          <div className="text-xs text-gray-400">{balance.toFixed(4)} SOL</div>
-        </div>
-        <button
-          onClick={handleDisconnect}
-          className="text-xs bg-red-500/20 hover:bg-red-500/30 px-3 py-1 rounded"
-        >
-          Disconnect
-        </button>
-      </div>
+     
+        <WalletMultiButton className="!bg-red-500/20 hover:!bg-red-500/30 !px-3 !py-1 !text-xs !rounded" />
     )
   }
 
-  return (
-    <button
-      onClick={handleConnect}
-      disabled={loading}
-      className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 px-6 py-2 rounded-lg font-semibold disabled:opacity-50"
-    >
-      {loading ? 'Connecting...' : 'Connect Wallet'}
-    </button>
-  )
+  return <WalletMultiButton className="!bg-gradient-to-r !from-purple-500 !to-pink-500 hover:!from-purple-600 hover:!to-pink-600" />
 }
 
 
 export function useMatchCreationWithEscrow() {
+  const { publicKey, sendTransaction, connected } = useWallet()
+  const { connection } = useConnection()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -107,12 +57,16 @@ export function useMatchCreationWithEscrow() {
     setError('')
 
     try {
-      const walletAddress = getConnectedWallet()
-      if (!walletAddress) {
+      if (!connected || !publicKey) {
         throw new Error('Please connect your wallet first')
       }
 
-      const escrowResult = await createEscrow(wagerAmount)
+      const escrowResult = await createEscrowTransaction(
+        connection,
+        publicKey,
+        sendTransaction,
+        wagerAmount
+      )
       
       if (!escrowResult.success) {
         throw new Error(escrowResult.error || 'Escrow failed')
@@ -124,7 +78,7 @@ export function useMatchCreationWithEscrow() {
         username,
         gameType,
         wagerAmount,
-        walletAddress,
+        publicKey.toString(),
         escrowResult.txHash!,
         gameSpecificData
       )
@@ -145,6 +99,8 @@ export function useMatchCreationWithEscrow() {
 }
 
 export function useJoinMatchWithEscrow() {
+  const { publicKey, sendTransaction, connected } = useWallet()
+  const { connection } = useConnection()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -158,14 +114,16 @@ export function useJoinMatchWithEscrow() {
     setError('')
 
     try {
-      // Step 1: Get connected wallet
-      const walletAddress = getConnectedWallet()
-      if (!walletAddress) {
+      if (!connected || !publicKey) {
         throw new Error('Please connect your wallet first')
       }
 
-      // Step 2: Create escrow transaction
-      const escrowResult = await createEscrow(wagerAmount)
+      const escrowResult = await createEscrowTransaction(
+        connection,
+        publicKey,
+        sendTransaction,
+        wagerAmount
+      )
       
       if (!escrowResult.success) {
         throw new Error(escrowResult.error || 'Escrow failed')
@@ -173,11 +131,10 @@ export function useJoinMatchWithEscrow() {
 
       console.log('✅ Escrow TX:', escrowResult.txHash)
 
-      // Step 3: Join match in database
       const match = await joinMatchWithEscrow(
         matchId,
         username,
-        walletAddress,
+        publicKey.toString(),
         escrowResult.txHash!,
         gameSpecificData
       )

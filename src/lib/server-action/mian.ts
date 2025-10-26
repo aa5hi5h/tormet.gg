@@ -2471,7 +2471,6 @@ export async function checkPUBGMatchResult() {
       try {
         const platform = (match.region as PUBGPlatform) || 'steam'
 
-        // Get current stats for both players
         const currentStats1 = await capturePlayerStatsSnapshot(match.summonerPuuid1, platform)
         const currentStats2 = await capturePlayerStatsSnapshot(match.summonerPuuid2, platform)
 
@@ -2484,7 +2483,6 @@ export async function checkPUBGMatchResult() {
         const beforeStats1 = beforeSnapshot.player1 as PUBGPlayerStats
         const beforeStats2 = beforeSnapshot.player2 as PUBGPlayerStats
 
-        // Compare stats to determine winner
         const result = comparePUBGSnapshots(
           beforeStats1,
           currentStats1,
@@ -2493,7 +2491,6 @@ export async function checkPUBGMatchResult() {
         )
 
         if (result) {
-          // Calculate stat differences for logging
           const player1Wins = (currentStats1.wins || 0) - (beforeStats1.wins || 0)
           const player2Wins = (currentStats2.wins || 0) - (beforeStats2.wins || 0)
           const player1Kills = (currentStats1.kills || 0) - (beforeStats1.kills || 0)
@@ -2503,7 +2500,7 @@ export async function checkPUBGMatchResult() {
             where: { id: match.id },
             data: {
               status: 'FINISHED',
-              winner: result, // No await needed - comparePUBGSnapshots returns string directly
+              winner: result,
               statsSnapshotAfter: {
                 player1: currentStats1,
                 player2: currentStats2,
@@ -2520,7 +2517,7 @@ export async function checkPUBGMatchResult() {
                   }
                 },
                 timestamp: Date.now()
-              } as any, // Cast to any for Prisma JSON
+              } as any,
               finishedAt: new Date()
             }
           })
@@ -2528,6 +2525,26 @@ export async function checkPUBGMatchResult() {
           console.log(`✅ PUBG Match ${match.id} finished! Winner: ${result}`)
           console.log(`   ${match.summonerName1}: ${player1Wins} wins, ${player1Kills} kills`)
           console.log(`   ${match.summonerName2}: ${player2Wins} wins, ${player2Kills} kills`)
+
+          try {
+            const payoutResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/payout`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ matchId: match.id })
+            })
+
+            const payoutData = await payoutResponse.json()
+
+            if (payoutData.success) {
+              console.log(`💰 Payout processed! TX: ${payoutData.txHash}`)
+            } else {
+              console.error(`⚠️ Payout failed: ${payoutData.error}`)
+            }
+          } catch (payoutError) {
+            console.error(`❌ Error triggering payout:`, payoutError)
+          }
         } else {
           console.log(`⏳ No conclusive result yet for match ${match.id}`)
         }
@@ -2843,7 +2860,7 @@ export async function cancelMatchAndRefund(matchId: string, username: string) {
     if (match.status === 'FINISHED') {
       throw new Error('Cannot cancel finished match')
     }
-    
+
     const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/payout`, {
       method: 'DELETE',
       headers: {

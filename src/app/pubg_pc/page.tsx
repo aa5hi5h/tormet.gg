@@ -9,6 +9,8 @@ import {
   checkPUBGMatchResult,
   getPUBGPlayerCurrentStats
 } from "@/lib/server-action/mian"
+import WalletButton, { useJoinMatchWithEscrow, useMatchCreationWithEscrow } from "@/components/wallet-button"
+import { capturePlayerStatsSnapshot, getPlayerByName } from "@/lib/server-action/pubg-api"
 
 interface PUBGMatchProps {
   id: string
@@ -27,6 +29,7 @@ interface PUBGMatchProps {
   winner?: 'CREATOR' | 'JOINER' | 'DRAW' | null
   wager: number
   createdAt: Date
+  statsSnapshotBefore?: any
   statsSnapshotAfter?: any
 }
 
@@ -43,6 +46,9 @@ export default function PUBGPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [myActiveMatches, setMyActiveMatches] = useState<string[]>([])
+
+  const {createMatch , loading: creatingMatch} = useMatchCreationWithEscrow()
+  const {joinMatch , loading:joiningMatch} = useJoinMatchWithEscrow()
 
   useEffect(() => {
     loadAllMatches()
@@ -79,51 +85,117 @@ export default function PUBGPage() {
     setError('')
     
     try {
-      const match = await createPUBGMatch(username, playerName, platform, parseFloat(wager) || 0)
-      
-      setMyActiveMatches(prev => [...prev, (match as any).id])
-      
+    const player = await getPlayerByName(playerName, platform)
+    if (!player) {
+      throw new Error('Player not found. Check your player name and platform.')
+    }
+
+    const initialStats = await capturePlayerStatsSnapshot(player.id, platform)
+    if (!initialStats) {
+      throw new Error('Failed to capture player stats. Player may have no recent matches.')
+    }
+
+    const result = await createMatch(
+      username,
+      'PUBG_PC',
+      parseFloat(wager),
+      {
+        summonerName1: playerName,
+        summonerPuuid1: player.id,
+        region: platform,
+        statsSnapshotBefore: {
+          player1: initialStats,
+          timestamp: Date.now(),
+          platform: platform
+        } as any
+      }
+    )
+
+    if (result.success && result.match) {
+      setMyActiveMatches(prev => [...prev, result.match.id])
       await loadAllMatches()
       
       setPlayerName('')
       setWager('')
       
-      alert('✅ PUBG match created! Waiting for opponent...')
-    } catch (error: any) {
-      setError(error.message || 'Failed to create match')
-    } finally {
-      setLoading(false)
+      alert(`✅ Match created with ${wager} SOL in escrow! Waiting for opponent...`)
+    } else {
+      throw new Error(result.error || 'Failed to create match')
     }
+  } catch (error: any) {
+    setError(error.message || 'Failed to create match')
+    alert(`❌ ${error.message}`)
+  } finally {
+    setLoading(false)
+  }
+}
+
+const handleJoinMatch = async (match: PUBGMatchProps) => {
+  if (!username) {
+    setError('Please enter your username first')
+    return
   }
 
-  const handleJoinMatch = async (match: PUBGMatchProps) => {
-    if (!username) {
-      setError('Please enter your username first')
-      return
+  if (match.creator.username === username) {
+    setError('You cannot join your own match!')
+    return
+  }
+
+  const joinerPlayerName = prompt(`Enter your PUBG Player Name:`)
+  if (!joinerPlayerName) return
+
+  setLoading(true)
+  setError('')
+
+  try {
+    const matchPlatform = (match.region as 'steam' | 'kakao' | 'psn' | 'xbox' | 'stadia') || 'steam'
+
+    // Step 1: Get joiner's player data
+    const player = await getPlayerByName(joinerPlayerName, matchPlatform)
+    if (!player) {
+      throw new Error('Player not found. Check your player name.')
     }
 
-    if (match.creator.username === username) {
-      setError('You cannot join your own match!')
-      return
+    // Step 2: Capture joiner's initial stats
+    const initialStats = await capturePlayerStatsSnapshot(player.id, matchPlatform)
+    if (!initialStats) {
+      throw new Error('Failed to capture player stats. Player may have no recent matches.')
     }
 
-    const joinerPlayerName = prompt(`Enter your PUBG Player Name:`)
-    if (!joinerPlayerName) return
+    // Step 3: Get the existing snapshot (it's already an object from DB)
+    const existingSnapshot = match.statsSnapshotBefore as any || {}
 
-    setLoading(true)
-    setError('')
+    // Step 4: Join match with escrow using the hook
+    const result = await joinMatch(
+      match.id,
+      username,
+      match.wager, // Must match the creator's wager
+      {
+        summonerName2: joinerPlayerName,
+        summonerPuuid2: player.id,
+        statsSnapshotBefore: {
+          player1: existingSnapshot.player1 || existingSnapshot,
+          player2: initialStats,
+          timestamp: Date.now(),
+          platform: matchPlatform
+        }
+      }
+    )
 
-    try {
-      await joinPUBGMatch(match.id, username, joinerPlayerName)
+    if (result.success && result.match) {
       setMyActiveMatches(prev => [...prev, match.id])
       await loadAllMatches()
-      alert('✅ Match joined! Start playing PUBG matches!')
-    } catch (error: any) {
-      setError(error.message || 'Failed to join match')
-    } finally {
-      setLoading(false)
+      alert(`✅ Joined match with ${match.wager} SOL in escrow! Start playing PUBG!`)
+    } else {
+      throw new Error(result.error || 'Failed to join match')
     }
+  } catch (error: any) {
+    setError(error.message || 'Failed to join match')
+    alert(`❌ ${error.message}`)
+  } finally {
+    setLoading(false)
   }
+}
 
   const getTimeSince = (date: Date) => {
     const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
@@ -151,21 +223,24 @@ export default function PUBGPage() {
     <div className="min-h-screen bg-gradient-to-br from-amber-700 via-orange-600 to-yellow-600 text-white">
       {/* Header */}
       <header className="border-b border-white/10 backdrop-blur-sm bg-black/20">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-3 rounded-lg">
-              <span className="text-2xl">🎯</span>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">PUBG: BATTLEGROUNDS</h1>
-              <p className="text-xs text-amber-200">Battle Royale • Survival • Winner Winner</p>
-            </div>
-          </div>
-          <a href="/" className="text-sm text-amber-200 hover:text-white">
-            ← Back to Games
-          </a>
-        </div>
-      </header>
+  <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div className="flex items-center gap-3">
+      <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-3 rounded-lg">
+        <span className="text-2xl">🎯</span>
+      </div>
+      <div>
+        <h1 className="text-2xl font-bold">PUBG: BATTLEGROUNDS</h1>
+        <p className="text-xs text-amber-200">Battle Royale • Survival • Winner Winner</p>
+      </div>
+    </div>
+    <div className="flex items-center gap-4">
+      <WalletButton />
+      <a href="/" className="text-sm text-amber-200 hover:text-white">
+        ← Back
+      </a>
+    </div>
+  </div>
+</header>
 
       <main className="max-w-7xl mx-auto px-6 py-8">
         {/* Info Banner */}

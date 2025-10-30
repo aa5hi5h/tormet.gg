@@ -58,6 +58,9 @@ model Match {
   
   joinerId    String?
   joiner      User?    @relation("MatchJoiner", fields: [joinerId], references: [id])
+
+  creatorColor String? // "white" or "black"
+  joinerColor  String? // "white" or "black"
   
   createTxHash  String?
   joinTxHash    String?

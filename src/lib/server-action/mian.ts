@@ -70,7 +70,8 @@ export async function joinMatch(matchId: string, username: string) {
 export async function getOpenMatches() {
   return await prisma.match.findMany({
     where: {
-      status: 'WAITING'
+      status: 'WAITING',
+      joinerId: null
     },
     include: {
       creator: true
@@ -101,7 +102,26 @@ export async function checkAndUpdateGameResults() {
           }
         })
       }
-    } catch (error) {
+      try {
+            const payoutResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/payout`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ matchId: match.id })
+            })
+
+            const payoutData = await payoutResponse.json()
+
+            if (payoutData.success) {
+              console.log(`💰 Payout processed! TX: ${payoutData.txHash}`)
+            } else {
+              console.error(`⚠️ Payout failed: ${payoutData.error}`)
+            }
+          } catch (payoutError) {
+            console.error(`❌ Error triggering payout:`, payoutError)
+          }
+        }catch (error) {
       console.error('Error checking game:', error)
     }
   }
@@ -2613,113 +2633,146 @@ export async function getPUBGPlayerCurrentStats(
   }
 }
 
+
+
 export async function createMatchWithEscrow(
-  username:string,
+  username: string,
   gameType: string,
   wagerAmount: number,
   walletAddress: string,
   txHash: string,
   gameSpecificData: any
-){
-  try{
-
-    const user = await prisma.user.findUnique({
-      where:{username}
+) {
+  try {
+    // Find or create user based on wallet address ONLY
+    let user = await prisma.user.findUnique({
+      where: { wallet: walletAddress }
     })
 
-    if(!username){
-      throw new Error("User not found")
-    }
-
-    if(!user?.wallet){
-      await prisma.user.update({
-        where: {username},
-        data:{
+    if (!user) {
+      // Create new user with this wallet
+      user = await prisma.user.create({
+        data: {
+          username,
           wallet: walletAddress
         }
       })
+      console.log(`✅ Created new user: ${username} with wallet: ${walletAddress}`)
+    } else {
+      // User exists with this wallet - optionally update username if changed
+      if (user.username !== username) {
+        user = await prisma.user.update({
+          where: { wallet: walletAddress },
+          data: { username }
+        })
+        console.log(`✅ Updated username for wallet ${walletAddress}: ${user.username} -> ${username}`)
+      }
     }
 
+    // Create match
     const match = await prisma.match.create({
-      data:{
+      data: {
         gameType: gameType as any,
         status: "WAITING",
         wager: wagerAmount,
-        creatorId: user?.id,
+        creatorId: user.id,
         createTxHash: txHash,
         ...gameSpecificData
       },
-      include:{
+      include: {
         creator: true
       }
     })
 
-    console.log(`match created with escrow: ${match.id}, TX: ${txHash}`)
+    console.log(`✅ Match created with escrow: ${match.id}, TX: ${txHash}`)
+    console.log(`🎨 Colors stored - Creator: ${match.creatorColor}, Joiner: ${match.joinerColor}`)
+
+    
     return match
-  }catch(err:any){
-    console.error("Error creating match with escrow ::::",err)
-    throw new Error(err.message || "Failed to create match with escrow ")
+  } catch (err: any) {
+    console.error("Error creating match with escrow:", err)
+    throw new Error(err.message || "Failed to create match with escrow")
   }
 }
 
 export async function joinMatchWithEscrow(
-  username:string,
   matchId: string,
+  username: string,
   walletAddress: string,
   txHash: string,
   gameSpecificData: any
-){
-  try{
-
+) {
+  try {
+    // Get match
     const match = await prisma.match.findUnique({
-      where:{id:matchId}
+      where: { id: matchId },
+      include: {
+        creator: true
+      }
     })
 
-    if(!match){
-      throw new Error("Match not fonud")
+    if (!match) {
+      throw new Error("Match not found")
     }
 
-    if(match.status !== "WAITING"){
+    if (match.status !== "WAITING") {
       throw new Error("Match is not available to join")
     }
 
-    const user = await prisma.user.findUnique({
-      where:{username}
+    // Find or create user based on wallet address ONLY
+    let user = await prisma.user.findUnique({
+      where: { wallet: walletAddress }
     })
 
-    if(!user){
-      throw new Error("User not found")
-    }
-
-    if(!user.wallet){
-      await prisma.user.update({
-        where:{username},
-        data:{wallet: walletAddress}
+    if (!user) {
+      // Create new user with this wallet
+      user = await prisma.user.create({
+        data: {
+          username,
+          wallet: walletAddress
+        }
       })
+      console.log(`✅ Created new user: ${username} with wallet: ${walletAddress}`)
+    } else {
+      // User exists with this wallet - optionally update username if changed
+      if (user.username !== username) {
+        user = await prisma.user.update({
+          where: { wallet: walletAddress },
+          data: { username }
+        })
+        console.log(`✅ Updated username for wallet ${walletAddress}: ${user.username} -> ${username}`)
+      }
     }
 
+    // Prevent joining own match
+    if (match.creatorId === user.id) {
+      throw new Error("You cannot join your own match")
+    }
+
+    // Update match
     const updatedMatch = await prisma.match.update({
-      where: {id:matchId},
-      data:{
+      where: { id: matchId },
+      data: {
         joinerId: user.id,
         joinTxHash: txHash,
         status: "PLAYING",
         ...gameSpecificData
       },
-      include:{
+      include: {
         creator: true,
         joiner: true
       }
     })
 
-     console.log(`✅ Player joined match with escrow: ${matchId}, TX: ${txHash}`)
+    console.log(`✅ Player joined match with escrow: ${matchId}, TX: ${txHash}`)
+    console.log(`🔗 Match URL: ${updatedMatch.url}`)
+    
     return updatedMatch
   } catch (error: any) {
     console.error('Error joining match with escrow:', error)
     throw new Error(error.message || 'Failed to join match')
   }
 }
-
 export async function finishMatchAndPayout(
   matchId: string,
   winner: 'CREATOR' | 'JOINER' | 'DRAW',

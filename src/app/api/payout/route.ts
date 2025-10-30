@@ -13,11 +13,9 @@ function getPlatformKeypair(): Keypair {
     throw new Error('Platform wallet private key not configured')
   }
   
-  // Private key should be stored as base64 or array of numbers
   const privateKeyArray = JSON.parse(privateKeyString)
   return Keypair.fromSecretKey(Uint8Array.from(privateKeyArray))
 }
-
 
 export async function POST(request: NextRequest) {
   try {
@@ -73,14 +71,23 @@ export async function POST(request: NextRequest) {
     }
 
     const platformKeypair = getPlatformKeypair()
+    const totalPot = match.wager * 2
 
-    let payoutResult
+    console.log(`💰 Processing payout for match ${matchId}`)
+    console.log(`   Total Pot: ${totalPot} SOL (${match.wager} x 2)`)
+    console.log(`   Winner from DB: ${match.winner}`)
+    console.log(`   Creator: ${match.creator.username} (${match.creatorColor}) - ${match.creator.wallet}`)
+    console.log(`   Joiner: ${match.joiner.username} (${match.joinerColor}) - ${match.joiner.wallet}`)
+
+    let payoutResult: { success: boolean; txHash?: string; txHashes?: string[]; error?: string }
 
     if (match.winner === 'DRAW') {
+      console.log('   🤝 Processing DRAW payout')
+      
       payoutResult = await processDrawPayout(
         match.creator.wallet,
         match.joiner.wallet,
-        match.wager,
+        totalPot,
         matchId,
         platformKeypair
       )
@@ -93,7 +100,7 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        const splitAmount = (match.wager * 0.95) / 2
+        const splitAmount = (totalPot * 0.95) / 2
         await prisma.user.update({
           where: { id: match.creatorId },
           data: { balance: { increment: splitAmount } }
@@ -102,21 +109,86 @@ export async function POST(request: NextRequest) {
           where: { id: match.joinerId! },
           data: { balance: { increment: splitAmount } }
         })
+        
+        console.log(`   ✅ Draw payout complete: ${splitAmount} SOL each`)
       }
     } else {
+      // CRITICAL FIX: Use stored color data to determine winner
+      let winnerWallet: string
+      let winnerId: string
+      let winnerName: string
+      
+      if (!match.creatorColor || !match.joinerColor) {
+        console.error('❌ Color data missing! Cannot determine winner.')
+        return NextResponse.json(
+          { error: 'Color data missing - cannot determine winner' },
+          { status: 500 }
+        )
+      }
 
-      const winnerWallet = match.winner === 'CREATOR' 
-        ? match.creator.wallet 
-        : match.joiner!.wallet
+      // Match winner against stored colors
+      if (match.winner === 'WHITE') {
+        if (match.creatorColor === 'white') {
+          winnerWallet = match.creator.wallet
+          winnerId = match.creatorId
+          winnerName = match.creator.username
+          console.log(`   ✅ Winner: Creator (WHITE) - ${winnerName}`)
+        } else if (match.joinerColor === 'white') {
+          winnerWallet = match.joiner.wallet
+          winnerId = match.joinerId!
+          winnerName = match.joiner.username
+          console.log(`   ✅ Winner: Joiner (WHITE) - ${winnerName}`)
+        } else {
+          console.error('❌ WHITE winner but no white player found!')
+          return NextResponse.json(
+            { error: 'Invalid color mapping for winner' },
+            { status: 500 }
+          )
+        }
+      } else if (match.winner === 'BLACK') {
+        if (match.creatorColor === 'black') {
+          winnerWallet = match.creator.wallet
+          winnerId = match.creatorId
+          winnerName = match.creator.username
+          console.log(`   ✅ Winner: Creator (BLACK) - ${winnerName}`)
+        } else if (match.joinerColor === 'black') {
+          winnerWallet = match.joiner.wallet
+          winnerId = match.joinerId!
+          winnerName = match.joiner.username
+          console.log(`   ✅ Winner: Joiner (BLACK) - ${winnerName}`)
+        } else {
+          console.error('❌ BLACK winner but no black player found!')
+          return NextResponse.json(
+            { error: 'Invalid color mapping for winner' },
+            { status: 500 }
+          )
+        }
+      } else {
+        // Handle CREATOR/JOINER winner types (for non-chess games)
+        if (match.winner === 'CREATOR') {
+          winnerWallet = match.creator.wallet
+          winnerId = match.creatorId
+          winnerName = match.creator.username
+          console.log(`   ✅ Winner: Creator - ${winnerName}`)
+        } else if (match.winner === 'JOINER') {
+          winnerWallet = match.joiner.wallet
+          winnerId = match.joinerId!
+          winnerName = match.joiner.username
+          console.log(`   ✅ Winner: Joiner - ${winnerName}`)
+        } else {
+          console.error(`❌ Unknown winner type: ${match.winner}`)
+          return NextResponse.json(
+            { error: `Invalid winner type: ${match.winner}` },
+            { status: 500 }
+          )
+        }
+      }
 
-      const winnerId = match.winner === 'CREATOR'
-        ? match.creatorId
-        : match.joinerId!
+      console.log(`   💸 Sending ${totalPot * 0.95} SOL to ${winnerWallet}`)
 
-      // Process winner payout
       payoutResult = await processWinnerPayout(
         winnerWallet,
-        match.wager,
+        totalPot,
         matchId,
         platformKeypair
       )
@@ -129,12 +201,13 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        // Update winner balance
-        const winnerAmount = match.wager * 0.95
+        const winnerAmount = totalPot * 0.95
         await prisma.user.update({
           where: { id: winnerId },
           data: { balance: { increment: winnerAmount } }
         })
+        
+        console.log(`   ✅ Winner payout complete: ${winnerAmount} SOL to ${winnerName}`)
       }
     }
 
@@ -145,12 +218,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const txHashResult = payoutResult.txHash || (payoutResult.txHashes ? payoutResult.txHashes.join(',') : undefined)
+
     return NextResponse.json({
       success: true,
       message: 'Payout processed successfully',
-      txHash: payoutResult.txHash || payoutResult.txHashes,
+      txHash: txHashResult,
       winner: match.winner,
-      amount: match.wager * 0.95
+      totalPot: totalPot,
+      winnerAmount: totalPot * 0.95,
+      platformFee: totalPot * 0.05
     })
 
   } catch (error: any) {

@@ -1,6 +1,8 @@
 "use client"
 import { useState } from "react"
 import Link from "next/link"
+import WalletButton from "./wallet-button"
+import Navbar from "./navbar"
 
 interface Game {
   id: string
@@ -136,6 +138,7 @@ const Homepage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
+      <Navbar />
       {/* Hero Section */}
       <div className="p-2 h-[60vh] w-full">
         <div className="flex flex-col w-full h-full pt-4 md:pt-32 justify-center">

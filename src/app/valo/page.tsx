@@ -387,7 +387,7 @@ const  ValorantPage = () => {
                           <li>Winner will be detected automatically! ⏱️ Checking every 10s...</li>
                         </ol>
                         <div className="mt-3 bg-orange-900/40 border border-orange-500/30 rounded p-3">
-                          <p className="text-xs text-orange-200">💡 <strong>Important:</strong> Make sure you're on OPPOSITE teams! If you're on the same team, match will be marked as draw.</p>
+                          <p className="text-xs text-orange-200">💡 <strong>Important:</strong> Make sure you&apos;re on OPPOSITE teams! If you&apos;re on the same team, match will be marked as draw.</p>
                         </div>
                       </div>
                     )}

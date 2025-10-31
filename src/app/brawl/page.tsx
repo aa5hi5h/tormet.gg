@@ -380,7 +380,7 @@ const  BrawlStarsPage = () => {
                           <li>Battle it out! Winner detected automatically from battle log ⏱️</li>
                         </ol>
                         <div className="mt-3 bg-orange-900/40 border border-orange-500/30 rounded p-3">
-                          <p className="text-xs text-orange-200">💡 <strong>Tip:</strong> Easiest way is Friendly Game mode! Make sure you're on opposite teams. System checks battle logs every 10 seconds.</p>
+                          <p className="text-xs text-orange-200">💡 <strong>Tip:</strong> Easiest way is Friendly Game mode! Make sure you&apso;re on opposite teams. System checks battle logs every 10 seconds.</p>
                         </div>
                       </div>
                     )}

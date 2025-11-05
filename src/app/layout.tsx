@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import WalletConnectionProvider from "@/components/connection";
-import Navbar from "@/components/navbar";
-import fav from "../../public/tormet-real-logo-removebg-preview.png"
+import NavigationMenus from "@/components/nav/main";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,8 +34,8 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <WalletConnectionProvider>
-          <Navbar />
-             <main className="pt-16">
+          <NavigationMenus />
+             <main className="pt-12  ml-[4%]">
             {children}
           </main>
         </WalletConnectionProvider>

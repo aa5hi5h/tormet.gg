@@ -30,11 +30,31 @@ export default function WalletButton() {
 
   if (connected && publicKey) {
     return (
-      <WalletMultiButton className="!bg-red-500/20 hover:!bg-red-500/30 !px-3 !py-1 !text-xs !rounded" />
+      <WalletMultiButton 
+        style={{
+          backgroundColor: 'rgba(239, 68, 68, 0.2)',
+          height: '32px',
+          fontSize: '13px',
+          padding: '0 12px',
+          borderRadius: '6px',
+          fontWeight: '500'
+        }}
+      />
     )
   }
 
-  return <WalletMultiButton className="!bg-gradient-to-r !from-purple-500 !to-pink-500 hover:!from-purple-600 hover:!to-pink-600" />
+  return (
+    <WalletMultiButton 
+      style={{
+        background: 'linear-gradient(to right, rgb(168, 85, 247), rgb(236, 72, 153))',
+        height: '32px',
+        fontSize: '13px',
+        padding: '0 12px',
+        borderRadius: '6px',
+        fontWeight: '500'
+      }}
+    />
+  )
 }
 
 export function useMatchCreationWithEscrow() {

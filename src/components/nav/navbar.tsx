@@ -39,7 +39,7 @@ const Navbar = () => {
     return (
         <div className="bg-zinc-600 rounded-lg ml-0.5 h-12 flex items-center justify-between px-6">
             <div className="text-gray-400 font-semibold">Arena</div>
-            <div className="flex  items-center ">{nav.map((item,_) => (
+            <div className="flex ml-4 items-center ">{nav.map((item,_) => (
                 <div className="flex p-3  text-white gap-1 items-center" key={_}>
                     {item.icon}
                     {item.name}

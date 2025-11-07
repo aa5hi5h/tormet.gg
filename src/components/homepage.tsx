@@ -1,9 +1,10 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import WalletButton from "./wallet-button"
 import Navbar from "./navbar"
 import NavigationMenus from "./nav/main"
+import { StyledString } from "next/dist/build/swc/types"
 
 interface Game {
   id: string
@@ -15,8 +16,67 @@ interface Game {
   path: string
 }
 
+interface HeroImage {
+  alt: string,
+  url: string
+}
+
 const Homepage = () => {
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [bgImages,setBgImages] = useState<HeroImage[]>([])
+  const [currentBgIndex,setCurrentBgIndex] = useState<number>(0)
+
+
+  const heroImages: HeroImage[] = [
+    {url: '/coc-1.jpg', alt: 'banner image'},
+    {url: '/fortnite-2.jpg', alt: 'banner image'},
+    {url: '/fortnite-3.jpg', alt: 'banner image'},
+    {url: '/fortnite-4.jpg', alt: 'banner image'},
+    {url: '/fortnite-5.jpg', alt: 'banner image'},
+    {url: '/fortnite-6.jpg', alt: 'banner image'},
+    {url: '/fortnite-7.jpg', alt: 'banner image'},
+    {url: '/coc-1.jpg', alt: 'banner image'},
+    {url: '/coc-2.jpg', alt: 'banner image'},
+    {url: '/coc-3.jpg', alt: 'banner image'},
+    {url: '/coc-4.jpg', alt: 'banner image'},
+    {url: '/coc-5.jpg', alt: 'banner image'},
+    {url: '/coc-6.jpg', alt: 'banner image'},
+    {url: '/cr-1.jpg', alt: 'banner image'},
+    {url: '/cr-2.jpg', alt: 'banner image'},
+    {url: '/cr-3.jpg', alt: 'banner image'},
+    {url: '/cr-4.jpg', alt: 'banner image'},
+    {url: '/cr-5.jpg', alt: 'banner image'},
+    {url: '/cr-6.jpg', alt: 'banner image'},
+    {url: '/cr-7.jpg', alt: 'banner image'},
+    {url: '/cr-8.jpg', alt: 'banner image'},
+    {url: '/cr-9.jpg', alt: 'banner image'},
+    {url: '/cr-10.jpg', alt: 'banner image'},
+    {url: '/bs-1.jpg', alt: 'banner image'},
+    {url: '/bs-2.jpg', alt: 'banner image'},
+    {url: '/bs-3.jpg', alt: 'banner image'},
+    {url: '/bs-4.jpg', alt: 'banner image'},
+    {url: '/csgo-1.jpg', alt: 'banner image'},
+    {url: '/csgo-2.jpg', alt: 'banner image'},
+    {url: '/csgo-3.jpg', alt: 'banner image'},
+    {url: '/csgo-4.jpg', alt: 'banner image'},
+    {url: '/csgo-5.jpg', alt: 'banner image'},
+    {url: '/csgo-6.jpg', alt: 'banner image'},
+    {url: '/csgo-7.jpg', alt: 'banner image'},
+    {url: '/csgo-8.jpg', alt: 'banner image'},
+    {url: '/csgo-9.jpg', alt: 'banner image'},
+  ]
+
+  const shuffledArray = (array:HeroImage[]): HeroImage[] => {
+    const shuffled = [...array]
+    for(let i = shuffled.length - 1 ; i > 0 ; i-- ){
+      const j = Math.floor(Math.random() * (i + 1))
+
+      const temp = shuffled[i]
+       shuffled[i] = shuffled[j]
+       shuffled[j] = temp
+    }
+    return shuffled
+  }
 
   const games: Game[] = [
     // Battle Royale
@@ -131,6 +191,20 @@ const Homepage = () => {
     }
   ]
 
+  useEffect(() => {
+    setBgImages(shuffledArray(heroImages))
+  },[])
+
+  useEffect(() => {
+    if(bgImages.length === 0) return
+
+    const interval = setInterval(() => {
+      setCurrentBgIndex((prev) => (prev + 1) % bgImages.length)
+    }, 5000)
+
+    return () => clearInterval(interval)
+}, [bgImages.length])
+
   const categories = ['all', 'Battle Royale', 'FPS', 'MOBA', 'Mobile', 'Sports', 'Strategy']
 
   const filteredGames = selectedCategory === 'all' 
@@ -139,17 +213,34 @@ const Homepage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white">
-      {/* Hero Section */}
-      <div className="p-2 h-[60vh] w-full">
-        <div className="flex flex-col w-full h-full pt-4 md:pt-32 justify-center">
+      {/* Hero Section with Dynamic Background */}
+      <div className="relative p-2 h-[60vh] w-full overflow-hidden">
+        {/* Background Images with Transitions */}
+        {bgImages.length > 0 && bgImages.map((image, index) => (
+          <div
+            key={index}
+            className={`absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ${
+              index === currentBgIndex ? 'opacity-100' : 'opacity-0'
+            }`}
+            style={{
+              backgroundImage: `url(${image.url})`,
+            }}
+          />
+        ))}
+
+        {/* Dark Overlay for better text readability */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/70" />
+
+        {/* Content */}
+        <div className="relative z-10 flex flex-col w-full h-full pt-4 md:pt-32 justify-center">
           <div className="max-w-3xl mx-auto text-center">
-            <div className="text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+            <div className="text-4xl md:text-5xl font-extrabold mb-4 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent drop-shadow-2xl">
               Join Games, Play Matches
             </div>
-            <div className="text-2xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+            <div className="text-2xl md:text-4xl font-bold mb-6 bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent drop-shadow-2xl">
               Organize Tournaments, Earn SOL
             </div>
-            <p className="text-lg text-gray-300 mb-8">
+            <p className="text-lg text-gray-200 mb-8 drop-shadow-lg">
               Compete in your favorite games, wager SOL, and win big! 🎮
             </p>
           </div>
@@ -157,13 +248,28 @@ const Homepage = () => {
           <div className="flex justify-center items-center w-full gap-4">
             <button 
               onClick={() => document.getElementById('games-section')?.scrollIntoView({ behavior: 'smooth' })}
-              className="p-3 px-8 rounded-2xl border border-slate-400 bg-slate-400 hover:cursor-pointer hover:bg-slate-300 font-semibold transition-all hover:scale-105"
+              className="p-3 px-8 rounded-2xl border border-slate-400 bg-slate-400/90 backdrop-blur-sm hover:cursor-pointer hover:bg-slate-300 font-semibold transition-all hover:scale-105 shadow-xl"
             >
               Explore Games
             </button>
-            <button className="p-3 px-8 rounded-2xl border border-blue-400 bg-blue-400 hover:cursor-pointer hover:bg-blue-300 font-semibold transition-all hover:scale-105">
+            <button className="p-3 px-8 rounded-2xl border border-blue-400 bg-blue-400/90 backdrop-blur-sm hover:cursor-pointer hover:bg-blue-300 font-semibold transition-all hover:scale-105 shadow-xl">
               Create Match
             </button>
+          </div>
+
+          {/* Background Indicator Dots */}
+          <div className="flex justify-center gap-2 mt-8">
+            {bgImages.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentBgIndex(index)}
+                className={`w-2 h-2 rounded-full transition-all ${
+                  index === currentBgIndex 
+                    ? 'bg-white w-8' 
+                    : 'bg-white/50 hover:bg-white/80'
+                }`}
+              />
+            ))}
           </div>
         </div>
       </div>

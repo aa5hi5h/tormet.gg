@@ -1,27 +1,33 @@
 import { Bell, Gamepad2, Heart, Megaphone, Store, Sword, Swords, Trophy } from "lucide-react"
 import WalletButton from "../wallet-button"
+import Link from "next/link"
 
 
 const nav = [
     {
         name:"Matches",
-        icon: <Gamepad2 size={18} />
+        icon: <Gamepad2 size={18} />,
+        href: '/match'
     },
     {
         name:"Tournaments",
-        icon: <Swords size={18} />
+        icon: <Swords size={18} />,
+        href: '/tournament'
     },
     {
         name: "Shop",
-        icon: <Store  size= {18}/>
+        icon: <Store  size= {18}/>,
+        href: '/shop'
     },
     {
         name: "LeaderBoard",
-        icon: <Trophy size={18} />
+        icon: <Trophy size={18} />,
+        href: '/leaderboard'
     },
     {
         name: "Organize",
-        icon: <Megaphone size={18}/>
+        icon: <Megaphone size={18}/>,
+        href: '/host'
     }
 ]
 
@@ -37,13 +43,13 @@ const endOptions = [
 
 const Navbar = () => {
     return (
-        <div className="bg-zinc-600 rounded-lg ml-0.5 h-12 flex items-center justify-between px-6">
-            <div className="text-gray-400 font-semibold">Arena</div>
+          <div className="bg-transparent ml-0.5 h-12 flex items-center justify-between px-6">
+            <div className="text-zinc-400 font-semibold">Arena</div>
             <div className="flex ml-4 items-center ">{nav.map((item,_) => (
-                <div className="flex p-3  text-white gap-1 items-center" key={_}>
+                <Link href={item.href} className="flex p-3  text-white gap-1 items-center" key={_}>
                     {item.icon}
                     {item.name}
-                </div>
+                </Link>
             ))}</div>
 
             <div className="flex items-center ">
@@ -56,7 +62,7 @@ const Navbar = () => {
                     <WalletButton />
                 </div>
             </div>
-            
+
         </div>
     )
 }

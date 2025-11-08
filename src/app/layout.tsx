@@ -35,7 +35,7 @@ export default function RootLayout({
       >
         <WalletConnectionProvider>
           <NavigationMenus />
-             <main className="pt-12  ml-[4%]">
+             <main className=" ml-[4%]">
             {children}
           </main>
         </WalletConnectionProvider>

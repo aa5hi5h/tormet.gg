@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import WalletButton from "./wallet-button"
 import Navbar from "./navbar"
@@ -7,7 +7,7 @@ import NavigationMenus from "./nav/main"
 import { StyledString } from "next/dist/build/swc/types"
 import Image from "next/image"
 import image from "../../public/valo-mobile-1.webp"
-import { ArrowLeft, ArrowRight } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, Circle, Clock } from "lucide-react"
 
 interface Game {
   id: string
@@ -34,6 +34,8 @@ const Homepage = () => {
   const [bgImages,setBgImages] = useState<HeroImage[]>([])
   const [currentBgIndex,setCurrentBgIndex] = useState<number>(0)
   const [currentIndex,setCurrentIndex] = useState<number>(0)
+  const [progressIndex,setProgressIndex]= useState<number>(0)
+  const containerRef = useRef<HTMLDivElement>(null)
 
 
 
@@ -175,6 +177,83 @@ const Homepage = () => {
     return () => clearInterval(interval)
 }, [bgImages.length])
 
+const roadmapItems = [
+  {
+    version: 0.1,
+    title: 'Basic Ui setup & Launch',
+    status: 'shipped'
+  },
+  {
+    version: 0.1,
+    title: 'Initial Game Integration',
+    status: 'shipped'
+  },
+  {
+    version: 0.1,
+    title: 'Addedd Escrow Logic',
+    status: 'shipped'
+  },
+  {
+    version: 0.2,
+    title: 'UI Revmap',
+    status: 'In Progress'
+  },
+  {
+    version: 0.3,
+    title: 'Support All Games',
+    status: 'In Progress'
+  },
+  {
+    version : 0.4,
+    title: 'Add The LeaderBoard and Organize Tournaments',
+    status: "Not Started"
+  },
+  {
+    version: 1.0,
+    title: 'Support Trading Of In Game Items',
+    status: 'Not Started'
+  }
+]
+
+useEffect(() => {
+  const handleScroll = () => {
+    if (!containerRef.current) return;
+    const container = containerRef.current
+    const scrollTop = window.scrollY
+    const containerTop = container.offsetTop;
+     const containerHeight = container.offsetHeight;
+      const windowHeight = window.innerHeight;
+
+    const startScroll = containerTop - windowHeight / 2;
+      const endScroll = containerTop + containerHeight - windowHeight / 2;
+      const scrollProgress = Math.max(0, Math.min(1, (scrollTop - startScroll) / (endScroll - startScroll)));
+
+      const newIndex = Math.min(
+        Math.floor(scrollProgress * roadmapItems.length),
+        roadmapItems.length - 1 
+      );
+      
+      setProgressIndex(Math.max(0,newIndex))
+  }
+   window.addEventListener('scroll', handleScroll);
+   handleScroll()
+
+   return () => window.removeEventListener('scroll', handleScroll)
+},[roadmapItems.length])
+
+
+const getStatusColor = (status:string) => {
+  if(status === "shipped") return 'green';
+  if(status === 'In Progress') return 'yellow';
+  return 'gray'
+}
+
+const getStatusIcon = (status: string) => {
+  if(status === 'shipped') return <Check className="w-3 h-3 text-white" strokeWidth={3} />;
+  if(status === 'In Progress') return <Clock className="w-3 h-3 text-zinc-900" strokeWidth={3} />;
+  return <Circle className="w-2 h-2 text-zinc-500" />
+}
+
   return (
     <div className="min-h-screen  bg-zinc-900 text-white">
       <div className="relative  p-2 h-[80vh] rounded w-full overflow-hidden">
@@ -219,7 +298,11 @@ const Homepage = () => {
 <p className="text-xl text-gray-400 p-4 pb-12 text-center max-w-xl mx-auto">Tormet is designed to become one step for the gaming peeps wether it&apos;s for fun,competing or trading in game items</p>
        
   
-  <div className="bg-[#7C3AED] p-24 flex flex-col justify-center items-center px-4">
+  <div className="bg-[#7C3AED] p-24 flex flex-col justify-center items-center px-4"
+  style={{
+    backgroundImage: `radial-gradient(circle, rgba(255, 255, 255, 0.3) 2px, transparent 1px)`,
+    backgroundSize: '24px 24px'
+  }}>
     <div className="max-w-5xl mx-auto">
       <div className="relative flex items-center gap-6">
         <button onClick={prev}
@@ -255,8 +338,98 @@ const Homepage = () => {
     </div>
   </div>
 
-<div>
-  helllo there 
+  <div className="bg-zinc-900 border-t-1 border-b-1 border-white p-12">
+    <h1 className="text-4xl md:text-3xl font-bold max-w-4xl mx-auto text-center leading-tight bg-gradient-to-r from-white via-purple-200 to-white bg-clip-text text-transparent">
+  From weapon skins to character  costumes, your marketplace for every in-game item — coming soon
+</h1>
+  </div>
+
+<div className="bg-zinc-900  pt-36 p-12 "
+ref={containerRef}
+style={{
+    backgroundImage: `radial-gradient(circle, rgba(255, 255, 255, 0.3) 0.3px, transparent 1px)`,
+    backgroundSize: '12px 12px'
+  }}>
+  <h2 className="text-5xl text-center pb-18 font-medium">ROADMAP</h2>
+  <div className="max-w-3xl justify-center pt-12 pl-44 mx-auto relative">
+          {/* Vertical Line */}
+          <div className="absolute left-52 top-0 bottom-0 w-0.5 bg-zinc-700" />
+          
+          {/* Progress Line */}
+          <div 
+            className="absolute left-52 top-0 w-0.5 bg-gradient-to-b from-blue-500 to-purple-500 transition-all duration-300 ease-out"
+            style={{ 
+              height: `${(progressIndex / (roadmapItems.length - 1)) * 100}%`
+            }}
+          />
+
+          {/* Roadmap Items */}
+          <div className="space-y-12">
+            {roadmapItems.map((item, index) => {
+              const isActive = index <= progressIndex;
+              const isCurrent = index === progressIndex;
+               const itemStatus = getStatusColor(item.status);
+              const isScrollActive = index <= progressIndex;
+              
+              return (
+                <div key={index} className="relative pl-24">
+                  {/* Dot */}
+<div 
+                    className={`absolute left-6 top-2 w-5 h-5 rounded-full border-4 transition-all duration-500 ${
+                      isActive 
+                        ? 'border-zinc-900 bg-gradient-to-br from-blue-500 to-purple-500 scale-110' 
+                        : 'border-zinc-700 bg-zinc-900'
+                    }`}
+                  >
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      {getStatusIcon(item.status)}
+                    </div>
+                  </div>
+
+                  {/* Pulsing Ring for In Progress Items */}
+                  {item.status === 'In Progress' && (
+                    <div className="absolute left-6 top-2 w-5 h-5">
+                      <div className="absolute inset-0 rounded-full bg-yellow-500 opacity-20 animate-ping" />
+                    </div>
+                  )}
+
+                  {/* Content */}
+                  <div 
+                    className={`transition-all duration-500 ${
+                      isActive ? 'opacity-100 translate-x-0' : 'opacity-40 translate-x-4'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                        itemStatus === 'green'
+                          ? 'bg-green-500 text-white' 
+                          : itemStatus === 'yellow'
+                          ? 'bg-yellow-500 text-zinc-900'
+                          : 'bg-zinc-800 text-zinc-500'
+                      }`}>
+                        v{item.version}
+                      </div>
+                      <div className={`text-xs font-medium ${
+                        itemStatus === 'green'
+                          ? 'text-green-400' 
+                          : itemStatus === 'yellow'
+                          ? 'text-yellow-400'
+                          : 'text-zinc-600'
+                      }`}>
+                        {item.status}
+                      </div>
+                    </div>
+                    <h3 className={`text-2xl font-bold ${
+                      isActive ? 'text-white' : 'text-zinc-600'
+                    }`}>
+                      {item.title}
+                    </h3>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
   </div>       
     </div>
   )

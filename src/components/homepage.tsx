@@ -7,7 +7,8 @@ import NavigationMenus from "./nav/main"
 import { StyledString } from "next/dist/build/swc/types"
 import Image from "next/image"
 import image from "../../public/valo-mobile-1.webp"
-import { ArrowLeft, ArrowRight, Check, Circle, Clock } from "lucide-react"
+import { ArrowLeft, ArrowRight, Check, Circle, Clock, DollarSign, Dot, Github, Heart, MoveRight } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 interface Game {
   id: string
@@ -42,47 +43,58 @@ const Homepage = () => {
   const games = [
     {
       name: "Brawl Stars",
-      url: "/bs-mobile.webp"
+      url: "/bs-mobile.webp",
+      href: '/brawl'
     },
     {
       name: "Chess",
-      url: "/chess-mobile-1.webp"
+      url: "/chess-mobile-1.webp",
+      href: '/chess'
     },
     {
       name: "Counter Strike",
-      url: "/cs-1.jpg"
+      url: "/cs-1.jpg",
+      href: '/csgo'
     },
     {
       name: "Clash of Clans",
-      url: "/coc-mobile-2.webp"
+      url: "/coc-mobile-2.webp",
+      href: '/coc'
     },
     {
       name: "Clash Royale",
-      url: "coc-mobile-3.webp"
+      url: "coc-mobile-3.webp",
+      href: '/royale'
     },
     {
       name: "Dota",
-      url: "/dota.jpeg"
+      url: "/dota.jpeg",
+      href: '/dota'
     },
     {
       name: "Fortnite",
-      url: "/fortnite-mob-1.webp"
+      url: "/fortnite-mob-1.webp",
+      href: '/fortnite'
     },
     {
       name: "League of Legends",
-      url: "/lol-2.webp"
+      url: "/lol-2.webp",
+      href: '/lol'
     },
     {
       name: "Pubg PC",
-      url: "/pubg.webp"
+      url: "/pubg.webp",
+      href: '/pubg_pc'
     },
     {
       name: "Rocket League",
-      url: "/rocket-league.webp"
+      url: "/rocket-league.webp",
+      href: '/rl'
     },
     {
       name: "Valorant",
-      url: "/valo-mobile-1.webp"
+      url: "/valo-mobile-1.webp",
+      href: '/valo'
     }
   ]
 
@@ -110,6 +122,9 @@ const Homepage = () => {
 
     return () => clearInterval(interval)
   },[])
+
+
+  const router = useRouter()
 
 
   const heroImages: HeroImage[] = [
@@ -322,6 +337,7 @@ const getStatusIcon = (status: string) => {
                   src={game.url}
                   alt={game.name}
                   className="w-full h-full cursor-pointer object-cover"
+                  onClick={() => router.push(game.href)}
                 />
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
                   <p className="text-white text-center font-semibold">{game.name}</p>
@@ -352,18 +368,13 @@ style={{
   }}>
   <h2 className="text-5xl text-center pb-18 font-medium">ROADMAP</h2>
   <div className="max-w-3xl justify-center pt-12 pl-44 mx-auto relative">
-          {/* Vertical Line */}
           <div className="absolute left-52 top-0 bottom-0 w-0.5 bg-zinc-700" />
-          
-          {/* Progress Line */}
           <div 
             className="absolute left-52 top-0 w-0.5 bg-gradient-to-b from-blue-500 to-purple-500 transition-all duration-300 ease-out"
             style={{ 
               height: `${(progressIndex / (roadmapItems.length - 1)) * 100}%`
             }}
           />
-
-          {/* Roadmap Items */}
           <div className="space-y-12">
             {roadmapItems.map((item, index) => {
               const isActive = index <= progressIndex;
@@ -373,7 +384,6 @@ style={{
               
               return (
                 <div key={index} className="relative pl-24">
-                  {/* Dot */}
 <div 
                     className={`absolute left-6 top-2 w-5 h-5 rounded-full border-4 transition-all duration-500 ${
                       isActive 
@@ -386,21 +396,13 @@ style={{
                     </div>
                   </div>
 
-                  {/* Pulsing Ring for In Progress Items */}
-                  {item.status === 'In Progress' && (
-                    <div className="absolute left-6 top-2 w-5 h-5">
-                      <div className="absolute inset-0 rounded-full bg-yellow-500 opacity-20 animate-ping" />
-                    </div>
-                  )}
-
-                  {/* Content */}
                   <div 
                     className={`transition-all duration-500 ${
                       isActive ? 'opacity-100 translate-x-0' : 'opacity-40 translate-x-4'
                     }`}
                   >
                     <div className="flex items-center gap-3 mb-2">
-                      <div className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                      <div className={`inline-block px-2 py-1 rounded-full text-xs font-semibold ${
                         itemStatus === 'green'
                           ? 'bg-green-500 text-white' 
                           : itemStatus === 'yellow'
@@ -409,7 +411,7 @@ style={{
                       }`}>
                         v{item.version}
                       </div>
-                      <div className={`text-xs font-medium ${
+                      <div className={`text-lg font-medium ${
                         itemStatus === 'green'
                           ? 'text-green-400' 
                           : itemStatus === 'yellow'
@@ -430,7 +432,22 @@ style={{
             })}
           </div>
         </div>
-  </div>       
+  </div>      
+  <div className="border-t-1 p-6 border-white">
+    <div className="flex justify-between cursor-pointer items-center">
+      <div onClick={() => router.push('https://x.com/de6a5hi5h')} className="flex gap-2 items-center">
+        <p className="text-sm font-medium">Reach Out</p><span><MoveRight className="w-6 h-6" /></span>
+        </div>
+         <div className="flex items-center gap-2">
+      <Github onClick={() => router.push('https://github.com/aa5hi5h/tormet.gg')} className="w-7 h-7 p-1 cursor-pointer border-1 rounded-full " />
+      <Dot />
+      <div className="flex items-center gap-1">
+        <span>❤️</span>
+        <p className="text-sm">Thanks for Visiting!</p>
+      </div>
+    </div>
+    </div>
+    </div> 
     </div>
   )
 }

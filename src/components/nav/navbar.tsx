@@ -1,6 +1,8 @@
+"use client"
 import { Bell, Gamepad2, Heart, Megaphone, Store, Sword, Swords, Trophy } from "lucide-react"
 import WalletButton from "../wallet-button"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 
 
 const nav = [
@@ -40,13 +42,15 @@ const endOptions = [
     }
 ]
 
-
 const Navbar = () => {
+
+    const pathname = usePathname()
+
     return (
-          <div className="bg-transparent ml-0.5 h-12 flex items-center justify-between px-6">
+          <div className="bg-transparent backdrop-blur-xs ml-0.5 h-12 flex items-center justify-between px-6">
             <div className="text-zinc-400 font-semibold">Arena</div>
             <div className="flex ml-4 items-center ">{nav.map((item,_) => (
-                <Link href={item.href} className="flex p-3  text-white gap-1 items-center" key={_}>
+                <Link href={item.href} className={`flex p-3 font-medium gap-1 text-sm items-center ${pathname === item.href ? "text-yellow-500" : "text-white"} `} key={_}>
                     {item.icon}
                     {item.name}
                 </Link>

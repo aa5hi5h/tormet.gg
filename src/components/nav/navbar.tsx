@@ -27,7 +27,7 @@ const nav = [
     {
         name: "Organize",
         icon: <Megaphone size={18}/>,
-        href: '/host'
+        href: '/organize'
     }
 ]
 

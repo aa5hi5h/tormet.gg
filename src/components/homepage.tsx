@@ -360,7 +360,7 @@ const getStatusIcon = (status: string) => {
 </h1>
   </div>
 
-<div className="bg-zinc-900  pt-36 p-12 "
+<div className="bg-zinc-900  pt-36 pb-36 p-12 "
 ref={containerRef}
 style={{
     backgroundImage: `radial-gradient(circle, rgba(255, 255, 255, 0.3) 0.3px, transparent 1px)`,
@@ -434,8 +434,8 @@ style={{
         </div>
   </div>      
   <div className="border-t-1 p-6 border-white">
-    <div className="flex justify-between cursor-pointer items-center">
-      <div onClick={() => router.push('https://x.com/de6a5hi5h')} className="flex gap-2 items-center">
+    <div className="flex justify-between   items-center">
+      <div onClick={() => router.push('https://x.com/de6a5hi5h')} className="flex cursor-pointer gap-2 items-center">
         <p className="text-sm font-medium">Reach Out</p><span><MoveRight className="w-6 h-6" /></span>
         </div>
          <div className="flex items-center gap-2">

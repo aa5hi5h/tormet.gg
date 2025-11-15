@@ -11,7 +11,7 @@ const Sidebar = () => {
     const router = useRouter()
 
     return (
-        <div className="flex flex-col pt-1 h-screen overflow-y-auto items-center">
+        <div className="flex flex-col pt-1 bg-zinc-900 border-r border-gray-400 h-screen overflow-y-auto items-center">
             <div className="flex flex-col">
                 <Link href={'/'}>
             <Image src={logo} alt="website logo" className="w-10 h-10" />

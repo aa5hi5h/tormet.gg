@@ -58,12 +58,12 @@ const Homepage = () => {
     },
     {
       name: "Clash of Clans",
-      url: "/coc-mobile-2.webp",
+      url: "/coc-mobile-3.webp",
       href: '/coc'
     },
     {
       name: "Clash Royale",
-      url: "coc-mobile-3.webp",
+      url: "coc-mobile-2.webp",
       href: '/royale'
     },
     {

@@ -7,7 +7,7 @@ import {
   getAllFortniteMatches,
   getFortniteMatchById,
   submitFortniteMatchResult,
-} from "../../lib/server-action/mian"
+} from "../../../lib/server-action/mian"
 
 interface FortniteMatchProps {
   id: string

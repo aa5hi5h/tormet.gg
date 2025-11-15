@@ -7,7 +7,7 @@ import {
   getAllRocketLeagueMatches,
   getRocketLeagueMatchById,
   submitRocketLeagueMatchResult,
-} from "../../lib/server-action/mian"
+} from "../../../lib/server-action/mian"
 
 interface RocketLeagueMatchProps {
   id: string

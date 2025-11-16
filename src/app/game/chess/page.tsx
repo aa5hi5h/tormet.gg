@@ -3,7 +3,13 @@ import axios from "axios"
 import { useState, useEffect, useRef } from "react"
 import { checkAndUpdateGameResults, getAllActiveMatches, getOpenMatches } from "../../../lib/server-action/mian"
 import WalletButton, { useJoinMatchWithEscrow, useMatchCreationWithEscrow } from "@/components/wallet-button"
-import { Crown, Eye, Shield, Sword, Trophy, Users, Zap } from "lucide-react"
+import { Clock, Crown, Eye, Plus, Shield, Sword, Swords, Ticket, Trophy, Users, X, Zap } from "lucide-react"
+import chessImg from "../../../../public/chess new logo.png"
+import Image from "next/image"
+import backgroundImage from "../../../../public/chess-2.jpg"
+import heroImg from "../../../../public/chess-1-removebg-preview.png"
+import solPng from "../../../../public/solana_gold-removebg-preview.png"
+import solSvg from "../../../../public/solana-sol-logo.svg"
 
 interface MatchProps {
   id: string
@@ -34,6 +40,7 @@ const ChessInterface = () => {
   const [joiningMatchId, setJoiningMatchId] = useState<string | null>(null)
   const [pendingGameUrl, setPendingGameUrl] = useState<string | null>(null)
   const [showGameModal, setShowGameModal] = useState(false)
+  const [showCreateModal, setShowCreateModal] = useState<boolean>(false)
   const hasRedirectedRef = useRef<Set<string>>(new Set())
 
   const { createMatch: createMatchWithWallet, loading: creatingMatch, error: createError } = useMatchCreationWithEscrow()
@@ -102,6 +109,21 @@ const ChessInterface = () => {
       console.error('Error loading matches:', error)
     }
   }
+
+  const chessImages = [
+    "/chess-4.jpg",
+    "/chess-5.jpg",
+    "/chess-6.jpg",
+    "/chess-7.jpg",
+    "/chess-8.jpg",
+    "/chess-9.jpg",
+    "/chess-10.jpg",
+    "/chess-11.png",
+    "/chess-12.jpg",
+    "/chess-13.jpg",
+    "/chess-14.jpg",
+    "/chess-20.jpg",
+  ]
 
   const onCreateMatch = async () => {
     if (!name) {
@@ -285,6 +307,11 @@ const ChessInterface = () => {
     }
   }
 
+  const getRandomImages = (matchId: string) => {
+    const hash = matchId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
+    return chessImages[hash % chessImages.length]
+  }
+
   const getStatusBadge = (match: MatchProps) => {
   const isMyMatch = match.creator.username === name
   
@@ -314,18 +341,29 @@ const ChessInterface = () => {
 }
 
   return (
-    <div className="min-h-screen  bg-zinc-950">
-      {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        {/* Animated Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-indigo-900/40 to-blue-900/40">
-          <div className="absolute inset-0 opacity-20"
-            style={{
-              backgroundImage: `radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)`,
-              backgroundSize: '40px 40px'
-            }}
-          />
-        </div>
+    <div className="min-h-screen bg-zinc-900">
+  {/* Hero Section */}
+  <div className="relative overflow-hidden">
+    {/* Background Image Layer */}
+    <div className="absolute inset-0">
+      <Image
+        src={backgroundImage}
+        alt="Chess Background"
+        className="w-full h-full object-cover opacity-20"
+      />
+      {/* Dark Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-br from-black/40 via-purple-900/40 to-black/40" />
+    </div>
+
+    {/* Animated Gradient Overlay */}
+    <div className="absolute inset-0 bg-gradient-to-br from-purple-900/40 via-indigo-900/40 to-blue-900/40">
+      <div className="absolute inset-0 opacity-20"
+        style={{
+          backgroundImage: `radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)`,
+          backgroundSize: '40px 40px'
+        }}
+      />
+    </div>
 
         {/* Diagonal Accent Lines */}
         <div className="absolute top-0 right-0 w-1/2 h-full opacity-30">
@@ -342,8 +380,8 @@ const ChessInterface = () => {
               <div className="flex group">
                 <div className="absolute inset-0 bg-gradient-to-br from-purple-500/30 to-blue-500/30 rounded-2xl blur-xl group-hover:blur-2xl transition-all" />
                 <div className="relative w-42 h-58 bg-gradient-to-br from-zinc-900 to-zinc-800 border-2 border-purple-500/30 rounded-2xl overflow-hidden">
-                  <img 
-                    src="https://images.unsplash.com/photo-1586165368502-1bad197a6461?w=600&q=80"
+                  <Image
+                    src={chessImg}
                     alt="Chess"
                     className="w-42 h-58 object-cover"
                   />
@@ -394,8 +432,181 @@ const ChessInterface = () => {
                   <div className="text-xs text-blue-300 font-semibold">OPEN LOBBIES</div>
                 </div>
               </div>
-              {/* Create Match Form */}
-              <div className="bg-zinc-900/80 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 space-y-4">
+              </div>
+
+            {/* Right Side - Character/Visual */}
+            <div className="relative h-[500px] top-[20] lg:h-[600px] z-10">
+              {/* Main Chess Piece Image */}
+              <div className="absolute right-0 top-0 rounded-2xl overflow-hidden w-full h-full">
+               <Image 
+               src={heroImg}
+               alt="Chess Pieces"
+               className="absolute right-0 top-0 rounded-2xl h-full w-auto object-contain drop-shadow-[0_0_50px_rgba(168,85,247,0.4)]"
+                />
+              </div>
+
+              {/* Floating Stats Card */}
+              <div className="absolute top-20 left-0 bg-black/80 backdrop-blur-md border border-purple-500/30 px-6 py-4 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <Crown className="w-8 h-8 text-yellow-400" />
+                  <div>
+                    <div className="text-3xl font-black text-white">#{name ? '125' : '---'}</div>
+                    <div className="text-xs text-purple-300 font-semibold">YOUR RANK</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Floating Active Match Indicator */}
+              <div className="absolute bottom-32 right-10 bg-black/80 backdrop-blur-md border border-blue-500/30 px-6 py-3 rounded-xl animate-pulse">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-400 rounded-full animate-ping absolute" />
+                  <div className="w-3 h-3 bg-green-400 rounded-full" />
+                  <span className="text-white font-bold ml-2">LIVE MATCHES</span>
+                </div>
+              </div>
+               <div className="absolute right-0 top-0 rounded-2xl overflow-hidden w-full h-full">
+               <Image 
+               src={heroImg}
+               alt="Chess Pieces"
+               className="absolute right-0 top-0 rounded-2xl h-full w-auto object-contain drop-shadow-[0_0_50px_rgba(168,85,247,0.4)]"
+                />
+              </div>
+
+              {/* Glow Effect */}
+              <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
+            </div>
+          </div>
+        </div>
+
+        {/* Wave Divider */}
+        <div className="absolute bottom-0 left-0 right-0">
+          <svg viewBox="0 0 1440 120" className="w-full h-auto">
+            <path 
+              fill="#09090b" 
+              d="M0,64L48,69.3C96,75,192,85,288,80C384,75,480,53,576,48C672,43,768,53,864,58.7C960,64,1056,64,1152,58.7C1248,53,1344,43,1392,37.3L1440,32L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z"
+            />
+          </svg>
+        </div>
+      </div>
+
+      {/* Matches Section */}
+      <div className="container mx-auto px-6 py-12">
+        <div className="flex flex-col mb-8">
+        <div className="flex  items-center justify-between">
+          <h2 className="text-3xl font-dark tracking-tight text-white">OPEN MATCHES</h2>
+          <div onClick={() => setShowCreateModal(true)} className="flex text-white text-lg px-4 py-2 bg-[#A855F7] gap-1 rounded-md cursor-pointer items-center">
+            <span className="text-lg font-medium">Create</span>
+            <Plus size={22} />
+          </div>
+        </div>
+          <p className=" pl-1 text-slate-300">Partcipate in the open matches and win prizes</p>
+        </div>
+        
+        
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {matches.map((match) => {
+            const isMyMatch = match.creator.username === name;
+            const isJoined = match.joiner?.username === name;
+            const matchImage = getRandomImages(match.id)
+             const slots = match.joiner ? '2/2' : '1/2';
+            const prizePool = (match.wager * 2 * 0.95).toFixed(3);
+
+            return (
+              <div 
+                key={match.id}
+                className="group relative"
+              >
+                {/* Glow Effect */}
+                <div className={`absolute inset-0 rounded-xl blur-xl transition-all ${
+                  match.status === 'PLAYING' 
+                    ? 'bg-blue-500/20 group-hover:bg-blue-500/30' 
+                    : 'bg-purple-500/20 group-hover:bg-purple-500/30'
+                }`} />
+                
+                {/* Card */}
+                <div className="relative bg-zinc-900/90 backdrop-blur-sm border border-purple-500/20 rounded-2xl overflow-hidden">
+                  {/* Image */}
+                  <div className="relative h-48 overflow-hidden">
+                    <img 
+                      src={matchImage} 
+                      alt="Match"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/20 to-transparent" />
+                    
+                    {/* Status badge */}
+                    <div className="absolute top-3 right-3">
+                      {getStatusBadge(match)}
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-gray-400">
+                          <Clock className="w-4 h-4" />
+                        <span className="font-mono text-xs">date</span>
+                      </div>
+                      <div className="flex text-yellow-600 items-center gap-1 ">
+                          <Swords className="w-4 h-4" />
+                        <span className="font-mono text-sm">{match.wager}</span>
+                        <Image src={solSvg} alt="SOL" className="w-3 h-3" />
+                      </div>
+                      </div>
+                    {match.status === 'WAITING' && !isMyMatch && (
+                      <button className="w-full bg-[#7C3AED] text-white rounded-xl font-bold transition-all shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 flex items-center overflow-hidden group/btn">
+                        <span className="flex-1 text-lg font-mono py-3">Join Match</span>
+                      </button>
+                    )}
+
+                    {match.status === 'PLAYING' && match.url && (
+                      <button className="w-full  text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 flex items-center justify-center gap-2">
+                        <Eye className="w-5 h-5" />
+                        Spectate
+                      </button>
+                    )}
+
+                    {isMyMatch && match.status === 'WAITING' && (
+                      <div className="w-full bg-zinc-800/50 text-zinc-400 py-3 rounded-xl font-bold text-center">
+                        Waiting...
+                      </div>
+                    )}
+
+                    {/* Footer Info */}
+                    <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
+                      <div className="flex items-center gap-1 text-zinc-400 text-sm">
+                        <Users className="w-4 h-4" />
+                        <span className="font-semibold">{slots} Slots</span>
+                      </div>
+                      <div className="flex font-semibold items-center gap-1 text-yellow-400 text-sm">
+                        <Trophy className="w-4 h-4" />
+                        <span className="">{prizePool}</span>
+                        <Image src={solPng} alt="SOL" className="w-8 h-6" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {matches.length === 0 && (
+          <div className="border-2 border-dashed border-zinc-800 rounded-xl p-16 text-center">
+            <div className="text-8xl mb-6">♟️</div>
+            <p className="text-zinc-500 text-xl font-bold mb-2">NO ACTIVE MATCHES</p>
+            <p className="text-zinc-600">Be the first to create one!</p>
+          </div>
+        )}
+      </div>
+
+      {showCreateModal && (
+         <div className="fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className=" rounded-lg shadow-2xl max-w-md w-full mx-4">
+            <div className="bg-zinc-900/80 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 space-y-4">
+            <div className="text-white flex justify-end">
+            <X onClick={() => setShowCreateModal(false)} className="cursor-pointer" size={18} />
+            </div>
                 <input
                   placeholder="Enter your username"
                   className="bg-zinc-800 border-2 border-zinc-700 text-white placeholder-zinc-500 p-3 rounded-lg w-full focus:outline-none focus:border-purple-500 transition-colors"
@@ -440,191 +651,8 @@ const ChessInterface = () => {
                 </div>
               </div>
             </div>
-
-            {/* Right Side - Character/Visual */}
-            <div className="relative h-[500px] lg:h-[600px] z-10">
-              {/* Main Chess Piece Image */}
-              <div className="absolute right-0 bottom-0 w-full h-full">
-                <img 
-                  src="https://images.unsplash.com/photo-1529699211952-734e80c4d42b?w=800&q=80"
-                  alt="Chess Pieces"
-                  className="absolute right-0 bottom-0 h-full w-auto object-contain drop-shadow-[0_0_50px_rgba(168,85,247,0.4)]"
-                />
-              </div>
-
-              {/* Floating Stats Card */}
-              <div className="absolute top-20 left-0 bg-black/80 backdrop-blur-md border border-purple-500/30 px-6 py-4 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <Crown className="w-8 h-8 text-yellow-400" />
-                  <div>
-                    <div className="text-3xl font-black text-white">#{name ? '125' : '---'}</div>
-                    <div className="text-xs text-purple-300 font-semibold">YOUR RANK</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Floating Active Match Indicator */}
-              <div className="absolute bottom-32 right-10 bg-black/80 backdrop-blur-md border border-blue-500/30 px-6 py-3 rounded-xl animate-pulse">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-400 rounded-full animate-ping absolute" />
-                  <div className="w-3 h-3 bg-green-400 rounded-full" />
-                  <span className="text-white font-bold ml-2">LIVE MATCHES</span>
-                </div>
-              </div>
-
-              {/* Glow Effect */}
-              <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
-            </div>
           </div>
-        </div>
-
-        {/* Wave Divider */}
-        <div className="absolute bottom-0 left-0 right-0">
-          <svg viewBox="0 0 1440 120" className="w-full h-auto">
-            <path 
-              fill="#09090b" 
-              d="M0,64L48,69.3C96,75,192,85,288,80C384,75,480,53,576,48C672,43,768,53,864,58.7C960,64,1056,64,1152,58.7C1248,53,1344,43,1392,37.3L1440,32L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z"
-            />
-          </svg>
-        </div>
-      </div>
-
-      {/* Matches Section */}
-      <div className="container mx-auto px-6 py-12">
-        <div className="flex items-center justify-between mb-8">
-          <h2 className="text-3xl font-black text-white">OPEN MATCHES</h2>
-          <button className="text-purple-400 hover:text-purple-300 text-sm font-bold flex items-center gap-2">
-            🔄 REFRESH
-          </button>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {matches.map((match) => {
-            const isMyMatch = match.creator.username === name;
-            const isJoined = match.joiner?.username === name;
-            
-            return (
-              <div 
-                key={match.id}
-                className="group relative"
-              >
-                {/* Glow Effect */}
-                <div className={`absolute inset-0 rounded-xl blur-xl transition-all ${
-                  match.status === 'PLAYING' 
-                    ? 'bg-blue-500/20 group-hover:bg-blue-500/30' 
-                    : 'bg-purple-500/20 group-hover:bg-purple-500/30'
-                }`} />
-                
-                {/* Card */}
-                <div className={`relative bg-gradient-to-br from-zinc-900 to-zinc-800 border-2 rounded-xl p-6 transition-all ${
-                  match.status === 'PLAYING'
-                    ? 'border-blue-500/30 hover:border-blue-500/50'
-                    : 'border-purple-500/30 hover:border-purple-500/50'
-                }`}>
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="text-xl font-black text-white">
-                          {isMyMatch ? '👤 YOUR MATCH' : `🎮 ${match.creator.username.toUpperCase()}`}
-                        </div>
-                        {getStatusBadge(match)}
-                      </div>
-                      
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-purple-300">
-                          🎨 <span className="font-mono bg-zinc-800 px-2 py-1 rounded">{match.creatorColor?.toUpperCase()}</span>
-                        </span>
-                        {match.joinerColor && (
-                          <span className="text-purple-300">
-                            vs <span className="font-mono bg-zinc-800 px-2 py-1 rounded">{match.joinerColor?.toUpperCase()}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* Wager Badge */}
-                    <div className="bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border border-yellow-500/30 px-4 py-2 rounded-lg">
-                      <div className="text-yellow-400 text-xs font-bold mb-1">WAGER</div>
-                      <div className="text-white font-black text-lg">{match.wager} SOL</div>
-                    </div>
-                  </div>
-
-                  {/* Prize Pool */}
-                  <div className="bg-zinc-800/50 rounded-lg p-3 mb-4">
-                    <div className="flex items-center justify-between">
-                      <span className="text-zinc-400 text-xs font-semibold">PRIZE POOL</span>
-                      <span className="text-green-400 font-black text-lg">{(match.wager * 2 * 0.95).toFixed(3)} SOL</span>
-                    </div>
-                  </div>
-
-                  {/* Game Info */}
-                  {match.gameId && (
-                    <div className="text-xs text-zinc-500 mb-4 font-mono">
-                      ID: {match.gameId}
-                    </div>
-                  )}
-
-                  {/* Joiner Info */}
-                  {match.joiner && (
-                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 mb-4">
-                      <div className="flex items-center gap-2 text-sm text-blue-300">
-                        <Sword className="w-4 h-4" />
-                        <strong>{match.joiner.username}</strong> joined the battle
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex gap-3">
-  {match.status === 'WAITING' && !isMyMatch && !isJoined && (
-    <button 
-      onClick={() => onJoinMatch(match)}
-      className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white px-6 py-3 rounded-lg font-black transition-all shadow-lg shadow-green-500/20 hover:shadow-green-500/40"
-    >
-      ⚡ JOIN BATTLE
-    </button>
-  )}
-  
-  {match.status === 'PLAYING' && match.url && (
-    <button 
-      onClick={() => {
-        setPendingGameUrl(match.url!);
-        setShowGameModal(true);
-      }}
-      className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white px-6 py-3 rounded-lg font-black transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 flex items-center justify-center gap-2"
-    >
-      <Eye className="w-5 h-5" />
-      SPECTATE
-    </button>
-  )}
-
-  {match.url && (
-    <button 
-      onClick={() => {
-        setPendingGameUrl(match.url!);
-        setShowGameModal(true);
-      }}
-      className="bg-zinc-700 hover:bg-zinc-600 text-white px-4 py-3 rounded-lg font-bold transition-all"
-    >
-      🔗
-    </button>
-  )}
-</div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {matches.length === 0 && (
-          <div className="border-2 border-dashed border-zinc-800 rounded-xl p-16 text-center">
-            <div className="text-8xl mb-6">♟️</div>
-            <p className="text-zinc-500 text-xl font-bold mb-2">NO ACTIVE MATCHES</p>
-            <p className="text-zinc-600">Be the first to create one!</p>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Game Modal */}
       {showGameModal && pendingGameUrl && (

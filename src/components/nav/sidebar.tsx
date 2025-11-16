@@ -19,7 +19,7 @@ const Sidebar = () => {
             <div className="border-1 border-gray-400 w-full" />
         </div>
         <div className="flex flex-col pt-4">
-            <Image onClick={() => router.push('/chess')} src={chesslogo} alt="chess logo" className="w-8 bg-gray-600 cursor-pointer rounded-md h-8" />
+            <Image onClick={() => router.push('/game/chess')} src={chesslogo} alt="chess logo" className="w-8 bg-gray-600 cursor-pointer rounded-md h-8" />
         </div>
         </div>
     )

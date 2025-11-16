@@ -44,57 +44,57 @@ const Homepage = () => {
     {
       name: "Brawl Stars",
       url: "/bs-mobile.webp",
-      href: '/brawl'
+      href: 'game/brawl'
     },
     {
       name: "Chess",
       url: "/chess-mobile-1.webp",
-      href: '/chess'
+      href: 'game/chess'
     },
     {
       name: "Counter Strike",
       url: "/cs-1.jpg",
-      href: '/csgo'
+      href: 'game/csgo'
     },
     {
       name: "Clash of Clans",
       url: "/coc-mobile-3.webp",
-      href: '/coc'
+      href: 'game/coc'
     },
     {
       name: "Clash Royale",
       url: "coc-mobile-2.webp",
-      href: '/royale'
+      href: 'game/royale'
     },
     {
       name: "Dota",
       url: "/dota.jpeg",
-      href: '/dota'
+      href: 'game/dota'
     },
     {
       name: "Fortnite",
       url: "/fortnite-mob-1.webp",
-      href: '/fortnite'
+      href: 'game/fortnite'
     },
     {
       name: "League of Legends",
       url: "/lol-2.webp",
-      href: '/lol'
+      href: 'game/lol'
     },
     {
       name: "Pubg PC",
       url: "/pubg.webp",
-      href: '/pubg_pc'
+      href: 'game/pubg_pc'
     },
     {
       name: "Rocket League",
       url: "/rocket-league.webp",
-      href: '/rl'
+      href: 'game/rl'
     },
     {
       name: "Valorant",
       url: "/valo-mobile-1.webp",
-      href: '/valo'
+      href: 'game/valo'
     }
   ]
 

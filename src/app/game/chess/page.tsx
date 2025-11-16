@@ -550,7 +550,12 @@ const ChessInterface = () => {
                       <div className="flex text-yellow-600 items-center gap-1 ">
                           <Swords className="w-4 h-4" />
                         <span className="font-mono text-sm">{match.wager}</span>
-                        <Image src={solSvg} alt="SOL" className="w-3 h-3" />
+                        <Image 
+  src={solSvg} 
+  alt="SOL" 
+  className="w-3 h-3" 
+  style={{filter: 'brightness(0) saturate(100%) invert(74%) sepia(66%) saturate(578%) hue-rotate(359deg) brightness(90%) contrast(101%)'}}
+/>
                       </div>
                       </div>
                     {match.status === 'WAITING' && !isMyMatch && (

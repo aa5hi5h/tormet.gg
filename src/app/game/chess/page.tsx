@@ -25,6 +25,7 @@ interface MatchProps {
   winner?: 'WHITE' | 'BLACK' | 'DRAW' | null
   wager: number
   gameType: string
+  createdAt: string| Date
   creatorColor?: string | null
   joinerColor?: string | null
 }
@@ -340,6 +341,25 @@ const ChessInterface = () => {
   }
 }
 
+const formatMatchDate = (createdAt: string | Date) => {
+  const date = new Date(createdAt)
+  
+  // Get day name (Sat, Sun, etc.)
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const dayName = days[date.getDay()]
+  
+  // Get month name
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const monthName = months[date.getMonth()]
+  
+  // Get date and time
+  const day = date.getDate()
+  const hours = date.getHours().toString().padStart(2, '0')
+  const minutes = date.getMinutes().toString().padStart(2, '0')
+  
+  return `${dayName} ${day} ${monthName} ${hours}:${minutes}`
+}
+
   return (
     <div className="min-h-screen bg-zinc-900">
   {/* Hero Section */}
@@ -545,17 +565,16 @@ const ChessInterface = () => {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1 text-gray-400">
                           <Clock className="w-4 h-4" />
-                        <span className="font-mono text-xs">date</span>
+                        <span className="font-mono text-xs">{formatMatchDate(match.createdAt)}</span>
                       </div>
                       <div className="flex text-yellow-600 items-center gap-1 ">
                           <Swords className="w-4 h-4" />
                         <span className="font-mono text-sm">{match.wager}</span>
                         <Image 
-  src={solSvg} 
-  alt="SOL" 
-  className="w-3 h-3" 
-  style={{filter: 'brightness(0) saturate(100%) invert(74%) sepia(66%) saturate(578%) hue-rotate(359deg) brightness(90%) contrast(101%)'}}
-/>
+                          src={solSvg} 
+                          alt="SOL" 
+                          className="w-3 h-3" 
+                          style={{filter: 'brightness(0) saturate(100%) invert(74%) sepia(66%) saturate(578%) hue-rotate(359deg) brightness(90%) contrast(101%)'}} />
                       </div>
                       </div>
                     {match.status === 'WAITING' && !isMyMatch && (

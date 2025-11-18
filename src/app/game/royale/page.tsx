@@ -10,6 +10,7 @@ import {
   getClashRoyaleMatchById,
   checkAndUpdateGameResults 
 } from "../../../lib/server-action/mian"
+import { Clock, Crown, Eye, Info, Plus, Shield, Star, Swords, Trophy, Users, X } from "lucide-react"
 
 interface ClashRoyaleMatchProps {
   id: string
@@ -38,6 +39,10 @@ const  ClashRoyalePage = () => {
   const [openMatches, setOpenMatches] = useState<ClashRoyaleMatchProps[]>([])
   const [playingMatches, setPlayingMatches] = useState<ClashRoyaleMatchProps[]>([])
   const [finishedMatches, setFinishedMatches] = useState<ClashRoyaleMatchProps[]>([])
+
+  const [showCreateModal, setShowCreateModal] = useState<boolean>(false)
+  const [showInfoModal, setShowInfoModal] = useState<boolean>(false)
+  const matches = [...openMatches,...playingMatches]
   
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -142,323 +147,426 @@ const  ClashRoyalePage = () => {
     }
   }
 
-  const getTimeSince = (date: Date) => {
-    const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000)
-    if (seconds < 60) return `${seconds}s ago`
-    const minutes = Math.floor(seconds / 60)
-    if (minutes < 60) return `${minutes}m ago`
-    const hours = Math.floor(minutes / 60)
-    return `${hours}h ago`
+  const ClashRoyaleImages = [
+    "","",""
+  ]
+
+  const getRandomImage = (matchId: string) => {
+    const hash = matchId.split('').reduce((acc,char) => acc + char.charCodeAt(0),0)
+    return ClashRoyaleImages[hash% ClashRoyaleImages.length]
+  }
+
+  const getStatusBadge = (match: ClashRoyaleMatchProps) => {
+    if (match.status === 'PLAYING') {
+      return (
+        <div className="bg-blue-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 animate-pulse">
+          <div className="w-2 h-2 bg-white rounded-full" />
+          LIVE
+        </div>
+      );
+    }
+    return (
+      <div className="bg-green-500/90 backdrop-blur-sm text-white px-3 py-1 rounded-full text-xs font-bold">
+        OPEN
+      </div>
+    );
+  };
+
+
+  const formatMatchDate = (_date: Date) => {
+    const date = new Date(_date)
+    const now = new Date()
+    const diff = Math.floor((now.getTime() - date.getTime()) / 1000 / 60);
+    if (diff < 1) return 'Just now';
+    if (diff < 60) return `${diff}m ago`;
+    return `${Math.floor(diff / 60)}h ago`;
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 text-white">
-      {/* Header */}
-      <header className="border-b border-white/10 backdrop-blur-sm bg-black/20">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-orange-400 to-pink-500 p-3 rounded-lg">
-              <span className="text-2xl">👑</span>
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Clash Royale</h1>
-              <p className="text-xs text-pink-200">Strategy • Cards • Battle</p>
-            </div>
-          </div>
-          <a href="/" className="text-sm text-pink-200 hover:text-white">
-            ← Back to Games
-          </a>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Info Banner */}
-        <div className="bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-400/30 rounded-xl p-6 mb-8">
-          <h2 className="font-bold text-lg mb-3 flex items-center gap-2">
-            <span>ℹ️</span> How It Works
-          </h2>
-          <ol className="space-y-2 text-sm text-purple-100 list-decimal list-inside">
-            <li>Create a match with your <strong>Player Tag</strong> and wager amount</li>
-            <li>Wait for an opponent to join with their Player Tag</li>
-            <li>Both players battle each other in Clash Royale (1v1 PvP or Friendly Battle)</li>
-            <li>Winner is automatically detected from battle log!</li>
-            <li>Payout sent immediately to winner's wallet</li>
-          </ol>
-          <div className="mt-4 bg-purple-900/30 border border-purple-500/30 rounded-lg p-3">
-            <p className="text-sm font-semibold text-purple-200">💡 Finding Your Player Tag:</p>
-            <p className="text-xs text-purple-300 mt-1">
-              1. Open Clash Royale<br/>
-              2. Tap your profile (top left)<br/>
-              3. Your Player Tag is shown below your name (e.g., #ABC123XYZ)<br/>
-              4. Tap to copy it!
-            </p>
-          </div>
+    <div className="min-h-screen bg-zinc-900">
+      
+      {/* Hero Section */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0">
+          <img
+            src="https://images.unsplash.com/photo-1542751371-adc38448a05e?w=1600"
+            alt="Royale Background"
+            className="w-full h-full object-cover opacity-20"
+          />
+          <div className="absolute inset-0 bg-gradient-to-br from-black/20 via-purple-900/20 to-black/20" />
         </div>
 
-        {error && (
-          <div className="bg-red-500/20 border border-red-500 rounded-lg p-4 mb-6">
-            <p className="text-red-200">❌ {error}</p>
-            <button onClick={() => setError('')} className="text-xs text-red-300 hover:text-red-200 mt-2">Dismiss</button>
-          </div>
-        )}
-
-        {/* Create Match Form */}
-        <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-xl p-6 mb-8">
-          <h2 className="text-2xl font-bold mb-6">👑 Create Match</h2>
-          
-          <div className="grid md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Your Username</label>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Enter username"
-                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 focus:outline-none focus:border-pink-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Player Tag <span className="text-xs text-pink-300">(e.g., #ABC123XYZ)</span>
-              </label>
-              <input
-                type="text"
-                value={playerTag}
-                onChange={(e) => setPlayerTag(e.target.value)}
-                placeholder="#ABC123XYZ"
-                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 focus:outline-none focus:border-pink-500"
-              />
-              <p className="text-xs text-pink-300 mt-1">
-                💡 Find in-game: Profile → Player Tag
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                Display Name <span className="text-xs text-gray-400">(optional)</span>
-              </label>
-              <input
-                type="text"
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                placeholder="Your Clash Royale name"
-                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 focus:outline-none focus:border-pink-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Wager Amount (SOL)</label>
-              <input
-                type="number"
-                step="0.1"
-                min="0"
-                value={wager}
-                onChange={(e) => setWager(e.target.value)}
-                placeholder="0.5"
-                className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 focus:outline-none focus:border-pink-500"
-              />
-              <p className="text-xs text-pink-300 mt-1">
-                Winner gets {wager ? (parseFloat(wager) * 1.95).toFixed(2) : '0.00'} SOL (5% fee)
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={handleCreateMatch}
-            disabled={loading || !username || !playerTag}
-            className="mt-6 w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-500 disabled:to-gray-600 px-6 py-3 rounded-lg font-bold disabled:cursor-not-allowed"
-          >
-            {loading ? '⏳ Creating...' : '✨ Create Match'}
-          </button>
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-600/10 via-pink-600/10 to-blue-500/10">
+          <div className="absolute inset-0 opacity-20"
+            style={{
+              backgroundImage: `radial-gradient(circle at 2px 2px, rgba(255,255,255,0.15) 1px, transparent 0)`,
+              backgroundSize: '40px 40px'
+            }}
+          />
         </div>
 
-        {/* Open Matches */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">🟢 Available Matches</h2>
-            <button
-              onClick={loadAllMatches}
-              className="text-sm text-pink-300 hover:text-pink-200"
-            >
-              🔄 Refresh
-            </button>
-          </div>
+        <div className="absolute top-0 right-0 w-1/2 h-full opacity-30">
+          <div className="absolute top-20 right-0 w-full h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent transform rotate-12" />
+          <div className="absolute top-40 right-0 w-full h-1 bg-gradient-to-r from-transparent via-pink-500 to-transparent transform rotate-12" />
+          <div className="absolute top-60 right-0 w-full h-1 bg-gradient-to-r from-transparent via-blue-500 to-transparent transform rotate-12" />
+        </div>
 
-          <div className="space-y-3">
-            {openMatches.length === 0 ? (
-              <div className="bg-white/5 border border-white/10 rounded-xl p-12 text-center">
-                <p className="text-gray-400">No matches available. Create one!</p>
+        <div className="relative container mx-auto px-6 py-18">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <div className="space-y-8 z-10">
+              <div className="flex group">
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/30 to-pink-500/30 rounded-2xl blur-xl group-hover:blur-2xl transition-all" />
+                <div className="relative w-42 h-58 bg-gradient-to-br from-zinc-900 to-zinc-800 border-2 border-purple-500/30 rounded-2xl overflow-hidden flex items-center justify-center">
+                  <div className="text-6xl">👑</div>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 ml-4 mb-4">
+                    <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs font-bold px-3 py-1 rounded-full">
+                      LIVE
+                    </span>
+                    <span className="text-purple-400 text-sm font-semibold">Arena Battles</span>
+                  </div>
+                  <h1 className="text-4xl font-black text-white leading-tight ml-4 mb-4">
+                    BATTLE IN<br />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400">
+                      THE ARENA
+                    </span>
+                  </h1>
+                  <p className="text-purple-200 text-lg ml-4 mb-6">
+                    Wager SOL and prove your card mastery
+                  </p>
+                </div>
               </div>
-            ) : (
-              openMatches.map((match) => {
-                const isMyMatch = match.creator.username === username
 
-                return (
-                  <div
-                    key={match.id}
-                    className={`bg-white/5 border rounded-xl p-5 ${
-                      isMyMatch ? 'border-pink-400/50 bg-pink-500/10' : 'border-white/10'
-                    }`}
-                  >
-                    <div className="flex justify-between items-center">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-2xl">⚔️</span>
-                          <div>
-                            <p className="font-bold text-lg">
-                              {isMyMatch ? '👤 Your Match' : match.creator.username}
-                            </p>
-                            <p className="text-sm text-gray-400">
-                              {match.summonerName1} • {match.summonerPuuid1} • {getTimeSince(match.createdAt)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex gap-4 text-sm">
-                          <span className="bg-yellow-500/20 text-yellow-300 px-3 py-1 rounded-full">
-                            💰 {match.wager} SOL wager
-                          </span>
-                          {isMyMatch && (
-                            <span className="bg-pink-500/20 text-pink-300 px-3 py-1 rounded-full animate-pulse">
-                              ⏳ Waiting for opponent...
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {!isMyMatch && (
-                        <button
-                          onClick={() => handleJoinMatch(match)}
-                          disabled={loading}
-                          className="bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 px-6 py-3 rounded-lg font-bold"
-                        >
-                          ⚡ Join & Battle
-                        </button>
-                      )}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-zinc-900/80 backdrop-blur-sm border border-purple-500/20 rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="bg-purple-500/20 p-2 rounded-lg">
+                      <Trophy className="w-5 h-5 text-yellow-400" />
+                    </div>
+                    <div className="text-3xl font-black text-white">
+                      {matches.filter(m => m.status === 'PLAYING' || m.status === 'WAITING').length}
                     </div>
                   </div>
-                )
-              })
-            )}
+                  <div className="text-xs text-purple-300 font-semibold">ACTIVE BATTLES</div>
+                </div>
+
+                <div className="bg-zinc-900/80 backdrop-blur-sm border border-pink-500/20 rounded-xl p-4">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="bg-pink-500/20 p-2 rounded-lg">
+                      <Users className="w-5 h-5 text-pink-400" />
+                    </div>
+                    <div className="text-3xl font-black text-white">
+                      {matches.filter(m => m.status === 'WAITING').length}
+                    </div>
+                  </div>
+                  <div className="text-xs text-pink-300 font-semibold">OPEN LOBBIES</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative h-[500px] lg:h-[600px] z-10">
+              <div className="absolute right-0 top-0 rounded-2xl overflow-hidden w-full h-full flex items-center justify-center">
+                <div className="text-9xl">⚔️</div>
+              </div>
+
+              <div className="absolute top-20 left-0 bg-black/80 backdrop-blur-md border border-purple-500/30 px-6 py-4 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <Crown className="w-8 h-8 text-yellow-400" />
+                  <div>
+                    <div className="text-3xl font-black text-white">#{username ? '156' : '---'}</div>
+                    <div className="text-xs text-purple-300 font-semibold">YOUR RANK</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="absolute bottom-32 right-10 bg-black/80 backdrop-blur-md border border-pink-500/30 px-6 py-3 rounded-xl animate-pulse">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-green-400 rounded-full animate-ping absolute" />
+                  <div className="w-3 h-3 bg-green-400 rounded-full" />
+                  <span className="text-white font-bold ml-2">LIVE BATTLES</span>
+                </div>
+              </div>
+
+              <div className="absolute top-1/2 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
+              <div className="absolute bottom-1/4 left-1/4 w-96 h-96 bg-pink-500/20 rounded-full blur-3xl" />
+            </div>
           </div>
         </div>
 
-        {/* Playing Matches */}
-        {playingMatches.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold mb-4">⚔️ Battles in Progress</h2>
-            <div className="space-y-4">
-              {playingMatches.map((match) => {
-                const isParticipant = match.creator.username === username || match.joiner?.username === username
+        <div className="absolute bottom-0 left-0 right-0">
+          <svg viewBox="0 0 1440 120" className="w-full h-auto">
+            <path 
+              fill="#09090b" 
+              d="M0,64L48,69.3C96,75,192,85,288,80C384,75,480,53,576,48C672,43,768,53,864,58.7C960,64,1056,64,1152,58.7C1248,53,1344,43,1392,37.3L1440,32L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z"
+            />
+          </svg>
+        </div>
+      </div>
 
-                return (
-                  <div
-                    key={match.id}
-                    className={`bg-white/5 border rounded-xl p-6 ${
-                      isParticipant ? 'border-purple-400/50 bg-purple-500/10' : 'border-white/10'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <p className="font-bold text-xl mb-2">
-                          {match.summonerName1} vs {match.summonerName2}
-                        </p>
-                        <div className="flex gap-2 text-sm">
-                          <span className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full">
-                            ⚔️ Battling
-                          </span>
-                          <span className="text-gray-400">Clash Royale</span>
-                        </div>
+      {/* Matches Section */}
+      <div className="container mx-auto px-6 py-12">
+        <div className="flex flex-col mb-8">
+          <div className="flex items-center justify-between">
+            <h2 className="text-3xl font-black tracking-tight text-white">OPEN BATTLES</h2>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowInfoModal(true)}
+                className="flex items-center gap-2 text-white px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-md transition-all"
+              >
+                <Info size={18} />
+                <span className="text-sm font-medium">How it works</span>
+              </button>
+              <div 
+                onClick={() => setShowCreateModal(true)} 
+                className="flex text-white text-lg px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 gap-1 rounded-md cursor-pointer items-center hover:from-purple-500 hover:to-pink-500 transition-all"
+              >
+                <span className="text-lg font-medium">Create</span>
+                <Plus size={22} />
+              </div>
+            </div>
+          </div>
+          <p className="pl-1 text-slate-300">Join the arena and battle for glory</p>
+        </div>
+        
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+          {matches.map((match) => {
+            const isMyMatch = match.creator.username === username
+            const slots = match.joiner ? '2/2' : '1/2'
+            const prizePool = (match.wager * 1.95).toFixed(3)
+
+            return (
+              <div 
+                key={match.id}
+                className="group relative"
+              >
+                <div className={`absolute inset-0 rounded-xl blur-xl transition-all ${
+                  match.status === 'PLAYING' 
+                    ? 'bg-blue-500/20 group-hover:bg-blue-500/30' 
+                    : 'bg-gradient-to-br from-purple-500/20 to-pink-500/20 group-hover:from-purple-500/30 group-hover:to-pink-500/30'
+                }`} />
+                
+                <div className="relative bg-zinc-900/90 backdrop-blur-sm border border-purple-500/20 rounded-2xl overflow-hidden">
+                  <div className="relative h-48 overflow-hidden bg-gradient-to-br from-purple-900/50 to-pink-900/50">
+                    <img 
+                      src={getRandomImage(match.id)} 
+                      alt="Match"
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 opacity-60"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 to-transparent" />
+                    
+                    <div className="absolute top-3 right-3">
+                      {getStatusBadge(match)}
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1 text-gray-400">
+                        <Clock className="w-4 h-4" />
+                        <span className="font-mono text-xs">{formatMatchDate(match.createdAt)}</span>
+                      </div>
+                      <div className="flex text-yellow-500 items-center gap-1">
+                        <Swords className="w-4 h-4" />
+                        <span className="font-mono text-sm font-bold">{match.wager} SOL</span>
                       </div>
                     </div>
 
-                    {isParticipant && (
-                      <div className="bg-purple-900/30 border border-purple-500/30 rounded-lg p-4 mt-4">
-                        <p className="font-bold mb-3 text-purple-300">📋 Battle Instructions:</p>
-                        <ol className="space-y-2 text-sm list-decimal list-inside">
-                          <li>Open Clash Royale on your device</li>
-                          <li>Tap "Social" tab → Add opponent as friend using their tag: <strong className="text-pink-300">{match.creator.username === username ? match.summonerPuuid2 : match.summonerPuuid1}</strong></li>
-                          <li>Go to "Social" → "Friends" → Challenge your opponent to a Friendly Battle</li>
-                          <li>Play a 1v1 PvP battle (standard rules)</li>
-                          <li>Winner detected automatically from battle log! ⏱️ Checking every 10s...</li>
-                        </ol>
-                        <div className="mt-3 bg-pink-900/40 border border-pink-500/30 rounded p-3">
-                          <p className="text-xs text-pink-200">
-                            💡 <strong>Tip:</strong> Use Friendly Battle feature for instant matchmaking! Both players should be online at the same time.
-                          </p>
-                        </div>
+                    {match.status === 'WAITING' && !isMyMatch && (
+                      <button 
+                        onClick={() => handleJoinMatch(match)} 
+                        className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white rounded-xl font-bold transition-all shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 flex items-center overflow-hidden group/btn"
+                      >
+                        <span className="flex-1 text-lg font-mono py-3">Join Battle</span>
+                      </button>
+                    )}
+
+                    {match.status === 'PLAYING' && (
+                      <button className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 flex items-center justify-center gap-2">
+                        <Eye className="w-5 h-5" />
+                        Spectate
+                      </button>
+                    )}
+
+                    {isMyMatch && match.status === 'WAITING' && (
+                      <div className="w-full bg-zinc-800/50 text-zinc-400 py-3 rounded-xl font-bold text-center">
+                        Waiting for opponent...
                       </div>
                     )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-zinc-800">
+                      <div className="flex items-center gap-1 text-zinc-400 text-sm">
+                        <Users className="w-4 h-4" />
+                        <span className="font-semibold">{slots}</span>
+                      </div>
+                      <div className="flex font-semibold items-center gap-1 text-yellow-400 text-sm">
+                        <Trophy className="w-4 h-4" />
+                        <span>{prizePool} SOL</span>
+                      </div>
+                    </div>
                   </div>
-                )
-              })}
-            </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {matches.length === 0 && (
+          <div className="border-2 border-dashed border-zinc-800 rounded-xl p-16 text-center">
+            <div className="text-8xl mb-6">👑</div>
+            <p className="text-zinc-500 text-xl font-bold mb-2">NO ACTIVE BATTLES</p>
+            <p className="text-zinc-600">Be the first to create one!</p>
           </div>
         )}
+      </div>
 
-        {/* Finished Matches */}
-        {finishedMatches.length > 0 && (
-          <div>
-            <h2 className="text-2xl font-bold mb-4">🏆 Completed Battles</h2>
+      {/* Info Modal */}
+      {showInfoModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900/95 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-black text-white flex items-center gap-2">
+                <Info className="w-6 h-6 text-purple-400" />
+                How Clash Royale Battles Work
+              </h3>
+              <X onClick={() => setShowInfoModal(false)} className="cursor-pointer text-gray-400 hover:text-white" size={24} />
+            </div>
+
+            <div className="space-y-4 text-sm text-gray-300">
+              <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4">
+                <h4 className="font-bold text-purple-400 mb-2 flex items-center gap-2">
+                  <Star className="w-4 h-4" />
+                  Step-by-Step Guide
+                </h4>
+                <ol className="space-y-2 list-decimal list-inside">
+                  <li>Create a match with your <strong>Player Tag</strong> and wager amount</li>
+                  <li>Wait for an opponent to join with their Player Tag</li>
+                  <li>Both players battle each other in Clash Royale (1v1 PvP or Friendly Battle)</li>
+                  <li>Winner is automatically detected from battle log!</li>
+                  <li>Payout sent immediately to winner's wallet</li>
+                </ol>
+              </div>
+
+              <div className="bg-pink-900/20 border border-pink-500/30 rounded-lg p-4">
+                <h4 className="font-bold text-pink-400 mb-2 flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  Finding Your Player Tag
+                </h4>
+                <ol className="space-y-1 list-decimal list-inside">
+                  <li>Open Clash Royale</li>
+                  <li>Tap your profile (top left)</li>
+                  <li>Your Player Tag is shown below your name (e.g., #ABC123XYZ)</li>
+                  <li>Tap to copy it!</li>
+                </ol>
+              </div>
+
+              <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4">
+                <h4 className="font-bold text-blue-400 mb-2 flex items-center gap-2">
+                  <Swords className="w-4 h-4" />
+                  Battle Instructions
+                </h4>
+                <ol className="space-y-1 list-decimal list-inside">
+                  <li>Add opponent as friend using their Player Tag</li>
+                  <li>Go to Social → Friends → Challenge to Friendly Battle</li>
+                  <li>Play 1v1 (standard rules)</li>
+                  <li>Winner detected automatically!</li>
+                </ol>
+              </div>
+
+              <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+                <h4 className="font-bold text-green-400 mb-2 flex items-center gap-2">
+                  <Trophy className="w-4 h-4" />
+                  Prize Distribution
+                </h4>
+                <p>Winner takes 95% of the total pot (5% platform fee). Example: 2 SOL wager = 1.9 SOL to winner!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Match Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-900/95 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 max-w-md w-full">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-black text-white">Create Battle</h3>
+              <X onClick={() => setShowCreateModal(false)} className="cursor-pointer text-gray-400 hover:text-white" size={24} />
+            </div>
+
+            {error && (
+              <div className="bg-red-500/20 border border-red-500 rounded-lg p-3 text-red-200 text-sm mb-4">
+                {error}
+              </div>
+            )}
+            
             <div className="space-y-4">
-              {finishedMatches.map((match) => {
-                const creatorWon = match.winner === 'CREATOR'
-                const joinerWon = match.winner === 'JOINER'
-                const isDraw = match.winner === 'DRAW'
+              <input
+                placeholder="Enter your username"
+                className="bg-zinc-800 border-2 border-zinc-700 text-white placeholder-zinc-500 p-3 rounded-lg w-full focus:outline-none focus:border-purple-500 transition-colors"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
 
-                return (
-                  <div
-                    key={match.id}
-                    className="bg-white/5 border border-green-500/30 rounded-xl p-6"
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <p className="text-sm text-gray-400 mb-1">{getTimeSince(match.createdAt)}</p>
-                        <p className="font-bold text-xl">
-                          {match.summonerName1} vs {match.summonerName2}
-                        </p>
-                      </div>
-                      <span className="bg-green-500/20 text-green-300 px-3 py-1 rounded-full text-sm">
-                        ✅ Finished
-                      </span>
-                    </div>
+              <div>
+                <label className="text-xs text-purple-300 font-semibold mb-2 block">
+                  PLAYER TAG <span className="text-pink-400">(e.g., #ABC123XYZ)</span>
+                </label>
+                <input
+                  placeholder="#ABC123XYZ"
+                  className="bg-zinc-800 border-2 border-zinc-700 text-white placeholder-zinc-500 p-3 rounded-lg w-full focus:outline-none focus:border-purple-500 transition-colors"
+                  value={playerTag}
+                  onChange={(e) => setPlayerTag(e.target.value)}
+                />
+                <p className="text-xs text-gray-400 mt-1">Find in-game: Profile → Player Tag</p>
+              </div>
 
-                    <div className="bg-gradient-to-r from-green-900/30 to-emerald-900/30 border border-green-500/30 rounded-lg p-4">
-                      <p className="text-center font-bold text-green-300 mb-3">
-                        {isDraw ? '🤝 Draw' : '🏆 Winner'}
-                      </p>
-                      <div className="flex justify-between items-center">
-                        <div className={`flex-1 text-center p-3 rounded ${creatorWon ? 'bg-green-500/20' : 'bg-gray-800/30'}`}>
-                          <p className={`font-bold ${creatorWon ? 'text-green-300' : 'text-gray-400'}`}>
-                            {creatorWon && '👑 '}
-                            {match.summonerName1}
-                          </p>
-                          <p className="text-xs text-gray-500">{match.creator.username}</p>
-                          <p className="text-xs text-gray-400 mt-1">{match.summonerPuuid1}</p>
-                        </div>
-                        <span className="px-4 text-gray-500">VS</span>
-                        <div className={`flex-1 text-center p-3 rounded ${joinerWon ? 'bg-green-500/20' : 'bg-gray-800/30'}`}>
-                          <p className={`font-bold ${joinerWon ? 'text-green-300' : 'text-gray-400'}`}>
-                            {joinerWon && '👑 '}
-                            {match.summonerName2}
-                          </p>
-                          <p className="text-xs text-gray-500">{match.joiner?.username}</p>
-                          <p className="text-xs text-gray-400 mt-1">{match.summonerPuuid2}</p>
-                        </div>
-                      </div>
-                      {!isDraw && (
-                        <p className="text-center text-green-400 font-semibold mt-3">
-                          💰 Payout: {(match.wager * 1.95).toFixed(2)} SOL
-                        </p>
-                      )}
-                    </div>
+              <input
+                placeholder="Display name (optional)"
+                className="bg-zinc-800 border-2 border-zinc-700 text-white placeholder-zinc-500 p-3 rounded-lg w-full focus:outline-none focus:border-purple-500 transition-colors"
+                value={playerName}
+                onChange={(e) => setPlayerName(e.target.value)}
+              />
+              
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-purple-300 font-semibold mb-1 block">WAGER AMOUNT</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    placeholder="1.5"
+                    className="bg-zinc-800 border-2 border-zinc-700 text-white p-3 rounded-lg w-full focus:outline-none focus:border-purple-500 transition-colors"
+                    value={wager}
+                    onChange={(e) => setWager(e.target.value)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-green-400 font-semibold mb-1 block">WINNER GETS</label>
+                  <div className="bg-zinc-800 border-2 border-green-500/30 text-green-400 p-3 rounded-lg font-bold text-center">
+                    {(parseFloat(wager || '0') * 1.95).toFixed(3)} SOL
                   </div>
-                )
-              })}
+                </div>
+              </div>
+              
+              <button 
+                onClick={handleCreateMatch}
+                disabled={!username || !playerTag || loading || parseFloat(wager || '0') <= 0}
+                className="bg-gradient-to-r from-purple-600 via-pink-600 to-blue-500 hover:from-purple-500 hover:via-pink-500 hover:to-blue-400 text-white px-8 py-4 rounded-lg font-black text-lg w-full disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40"
+              >
+                {loading ? '⏳ CREATING...' : '👑 CREATE BATTLE'}
+              </button>
+
+              <div className="bg-zinc-800/50 rounded-lg p-3 text-xs text-zinc-400">
+                <p className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-purple-400" />
+                  5% platform fee • Winner takes 95% of pot
+                </p>
+              </div>
             </div>
           </div>
-        )}
-      </main>
+        </div>
+      )}
     </div>
   )
 }

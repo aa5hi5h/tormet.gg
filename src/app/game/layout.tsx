@@ -7,8 +7,10 @@ const GameLayout = ({children}:{children:React.ReactNode}) => {
     return (
         <div>
             <div className="flex ">
+                <div className="hidden lg:block">
                 <MiniSidebar />
-                <div className="ml-[220px]">
+                </div>
+                <div className="w-full lg:ml-[220px]">
             {children}
             </div>
             </div>

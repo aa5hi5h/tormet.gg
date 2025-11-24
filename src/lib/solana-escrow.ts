@@ -8,7 +8,7 @@ import {
 } from '@solana/web3.js'
 
 
-const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.devnet.solana.com'
+const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || 'https://api.mainnet-beta.solana.com'
 const connection = new Connection(SOLANA_RPC_URL, 'confirmed')
 
 

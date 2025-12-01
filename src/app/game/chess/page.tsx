@@ -42,6 +42,8 @@ const ChessInterface = () => {
   const [pendingGameUrl, setPendingGameUrl] = useState<string | null>(null)
   const [showGameModal, setShowGameModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState<boolean>(false)
+  const [showJoinModal, setShowJoinModal] = useState(false)
+const [selectedMatchToJoin, setSelectedMatchToJoin] = useState<MatchProps | null>(null)
   const hasRedirectedRef = useRef<Set<string>>(new Set())
 
   const { createMatch: createMatchWithWallet, loading: creatingMatch, error: createError } = useMatchCreationWithEscrow()
@@ -209,104 +211,105 @@ const ChessInterface = () => {
   }
 
   const onJoinMatch = async (match: MatchProps) => {
-    if (!name) {
-      alert('⚠️  Please enter your username first')
-      return
-    }
-    
-    if (match.creator.username === name) {
-      alert('⚠️  You cannot join your own match!')
-      return
-    }
-
-    if (joiningMatch || joiningMatchId) {
-      alert('⏳ Please wait, already joining a match...')
-      return
-    }
-
-    if (match.joiner?.username === name) {
-      alert('ℹ️  You already joined this match!')
-      return
-    }
-    
-    setJoiningMatchId(match.id)
-    
-    try {
-      console.log('🎮 Joining match:', match.id)
-      console.log(`🎨 You will play as: ${match.joinerColor?.toUpperCase() || 'UNKNOWN'}`)
-
-      const result = await joinMatchWithWallet(
-        match.id,
-        name,
-        match.wager,
-        {}
-      )
-      
-      if (!result || !result.success) {
-        throw new Error(result?.error || 'Failed to join match')
-      }
-
-      console.log('✅ Join successful!')
-
-      let lichessUrl = result.match?.url || match.url
-      
-      if (lichessUrl && match.joinerColor) {
-        if (!lichessUrl.includes('?color=')) {
-          lichessUrl = lichessUrl + `?color=${match.joinerColor}`
-        }
-      }
-      
-      console.log('🔗 Lichess URL for joiner:', lichessUrl)
-      
-      if (lichessUrl) {
-        setPendingGameUrl(lichessUrl)
-        setShowGameModal(true)
-        
-        alert(
-          `✅ Successfully joined match!\n` +
-          `💰 Deposited ${match.wager} SOL\n` +
-          `🎨 Playing as: ${match.joinerColor?.toUpperCase()}\n\n` +
-          `🎮 Click the "Open Game" button to start playing!`
-        )
-      } else {
-        console.error('❌ NO URL FOUND!')
-        alert(
-          `✅ Joined match!\n` +
-          `💰 Deposited ${match.wager} SOL\n` +
-          `🎨 Playing as: ${match.joinerColor?.toUpperCase()}\n\n` +
-          `⚠️ Could not find game URL - please check the matches list`
-        )
-      }
-
-      loadMatches().catch(err => console.error('Failed to reload:', err))
-      
-    } catch (error: any) {
-      console.error('❌ Join match error:', error)
-      
-      const errorMsg = error.message || error.toString()
-      
-      if (errorMsg === 'WALLET_CANCELLED') {
-        alert('❌ Transaction cancelled\n\nPlease approve the transaction in your wallet to join the match.')
-      } else if (errorMsg === 'INSUFFICIENT_FUNDS') {
-        alert(`❌ Insufficient SOL balance\n\nYou need at least ${match.wager} SOL plus transaction fees (~0.001 SOL).`)
-      } else if (errorMsg === 'WALLET_NOT_CONNECTED') {
-        alert('❌ Wallet not connected\n\nPlease connect your wallet first.')
-      } else if (errorMsg.includes('already connected to user')) {
-        alert(`❌ ${errorMsg}\n\nThis wallet is linked to another account.`)
-      } else if (errorMsg.includes('cannot join your own match')) {
-        alert('❌ You cannot join your own match!')
-      } else if (errorMsg.includes('not available')) {
-        alert('❌ This match is no longer available to join.')
-        loadMatches()
-      } else if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
-        alert('❌ Network error\n\nPlease check your connection and try again.')
-      } else {
-        alert(`❌ Failed to join match\n\n${errorMsg}`)
-      }
-    } finally {
-      setJoiningMatchId(null)
-    }
+  if (!name) {
+    setSelectedMatchToJoin(match)
+    setShowJoinModal(true)
+    return
   }
+  
+  if (match.creator.username === name) {
+    alert('⚠️  You cannot join your own match!')
+    return
+  }
+
+  if (joiningMatch || joiningMatchId) {
+    alert('⏳ Please wait, already joining a match...')
+    return
+  }
+
+  if (match.joiner?.username === name) {
+    alert('ℹ️  You already joined this match!')
+    return
+  }
+  
+  setJoiningMatchId(match.id)
+  
+  try {
+    console.log('🎮 Joining match:', match.id)
+    console.log(`🎨 You will play as: ${match.joinerColor?.toUpperCase() || 'UNKNOWN'}`)
+
+    const result = await joinMatchWithWallet(
+      match.id,
+      name,
+      match.wager,
+      {}
+    )
+    
+    if (!result || !result.success) {
+      throw new Error(result?.error || 'Failed to join match')
+    }
+
+    console.log('✅ Join successful!')
+
+    let lichessUrl = result.match?.url || match.url
+    
+    if (lichessUrl && match.joinerColor) {
+      if (!lichessUrl.includes('?color=')) {
+        lichessUrl = lichessUrl + `?color=${match.joinerColor}`
+      }
+    }
+    
+    console.log('🔗 Lichess URL for joiner:', lichessUrl)
+    
+    if (lichessUrl) {
+      setPendingGameUrl(lichessUrl)
+      setShowGameModal(true)
+      
+      alert(
+        `✅ Successfully joined match!\n` +
+        `💰 Deposited ${match.wager} SOL\n` +
+        `🎨 Playing as: ${match.joinerColor?.toUpperCase()}\n\n` +
+        `🎮 Click the "Open Game" button to start playing!`
+      )
+    } else {
+      console.error('❌ NO URL FOUND!')
+      alert(
+        `✅ Joined match!\n` +
+        `💰 Deposited ${match.wager} SOL\n` +
+        `🎨 Playing as: ${match.joinerColor?.toUpperCase()}\n\n` +
+        `⚠️ Could not find game URL - please check the matches list`
+      )
+    }
+
+    loadMatches().catch(err => console.error('Failed to reload:', err))
+    
+  } catch (error: any) {
+    console.error('❌ Join match error:', error)
+    
+    const errorMsg = error.message || error.toString()
+    
+    if (errorMsg === 'WALLET_CANCELLED') {
+      alert('❌ Transaction cancelled\n\nPlease approve the transaction in your wallet to join the match.')
+    } else if (errorMsg === 'INSUFFICIENT_FUNDS') {
+      alert(`❌ Insufficient SOL balance\n\nYou need at least ${match.wager} SOL plus transaction fees (~0.001 SOL).`)
+    } else if (errorMsg === 'WALLET_NOT_CONNECTED') {
+      alert('❌ Wallet not connected\n\nPlease connect your wallet first.')
+    } else if (errorMsg.includes('already connected to user')) {
+      alert(`❌ ${errorMsg}\n\nThis wallet is linked to another account.`)
+    } else if (errorMsg.includes('cannot join your own match')) {
+      alert('❌ You cannot join your own match!')
+    } else if (errorMsg.includes('not available')) {
+      alert('❌ This match is no longer available to join.')
+      loadMatches()
+    } else if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
+      alert('❌ Network error\n\nPlease check your connection and try again.')
+    } else {
+      alert(`❌ Failed to join match\n\n${errorMsg}`)
+    }
+  } finally {
+    setJoiningMatchId(null)
+  }
+}
 
   const getRandomImages = (matchId: string) => {
     const hash = matchId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
@@ -578,10 +581,13 @@ const formatMatchDate = (createdAt: string | Date) => {
                       </div>
                       </div>
                     {match.status === 'WAITING' && !isMyMatch && (
-                      <button className="w-full bg-[#7C3AED] text-white rounded-xl font-bold transition-all shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 flex items-center overflow-hidden group/btn">
-                        <span className="flex-1 text-lg font-mono py-3">Join Match</span>
-                      </button>
-                    )}
+  <button 
+    onClick={() => onJoinMatch(match)}
+    disabled={joiningMatchId === match.id}
+    className="w-full bg-[#7C3AED] text-white rounded-xl font-bold transition-all shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40 flex items-center overflow-hidden group/btn disabled:opacity-50 disabled:cursor-not-allowed">
+    <span className="flex-1 text-lg font-mono py-3">{joiningMatchId === match.id ? '⏳ Joining...' : 'Join Match'}</span>
+  </button>
+)}
 
                     {match.status === 'PLAYING' && match.url && (
                       <button className="w-full  text-white py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-500/20 hover:shadow-blue-500/40 flex items-center justify-center gap-2">
@@ -723,6 +729,50 @@ const formatMatchDate = (createdAt: string | Date) => {
           </div>
         </div>
       )}
+      {showJoinModal && selectedMatchToJoin && (
+  <div className="fixed inset-0 bg-black/10 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="rounded-lg shadow-2xl max-w-md w-full mx-4">
+      <div className="bg-zinc-900/80 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 space-y-4">
+        <div className="text-white flex justify-end">
+          <X onClick={() => setShowJoinModal(false)} className="cursor-pointer" size={18} />
+        </div>
+        <h2 className="text-white text-2xl font-bold">Join Match</h2>
+        <input
+          placeholder="Enter your username"
+          className="bg-zinc-800 border-2 border-zinc-700 text-white placeholder-zinc-500 p-3 rounded-lg w-full focus:outline-none focus:border-purple-500 transition-colors"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        
+        <div className="bg-zinc-800/50 rounded-lg p-3 space-y-2">
+          <div className="flex justify-between text-sm text-zinc-400">
+            <span>Wager:</span>
+            <span className="text-yellow-400 font-bold">{selectedMatchToJoin.wager} SOL</span>
+          </div>
+          <div className="flex justify-between text-sm text-zinc-400">
+            <span>Prize Pool:</span>
+            <span className="text-green-400 font-bold">{(selectedMatchToJoin.wager * 2 * 0.95).toFixed(3)} SOL</span>
+          </div>
+        </div>
+        
+        <button 
+          onClick={() => {
+            if (name) {
+              setShowJoinModal(false)
+              onJoinMatch(selectedMatchToJoin)
+            } else {
+              alert('⚠️ Please enter your username')
+            }
+          }}
+          disabled={!name || joiningMatchId === selectedMatchToJoin.id}
+          className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white px-8 py-4 rounded-lg font-black text-lg w-full disabled:from-zinc-700 disabled:to-zinc-700 disabled:cursor-not-allowed transition-all shadow-lg shadow-purple-500/20 hover:shadow-purple-500/40"
+        >
+          {joiningMatchId === selectedMatchToJoin.id ? '⏳ JOINING...' : '⚡ JOIN MATCH'}
+        </button>
+      </div>
+    </div>
+  </div>
+)}
     </div>
   )
 }
